@@ -1,0 +1,53 @@
+# VVM (Vibe Voice Middleware) 依赖
+
+# 核心依赖
+asyncio-mqtt>=0.16.0  # MQTT 支持 (可选)
+
+# LLM 依赖
+langchain>=0.1.0
+langchain-openai>=0.0.8
+langchain-core>=0.1.0
+
+# MiMo TTS 依赖
+openai>=1.0.0          # MiMo TTS API (OpenAI 兼容协议)
+numpy>=1.24.0          # 流式音频处理
+soundfile>=0.12.0      # 音频文件读写
+
+# 飞书/Lark Bot
+lark-oapi>=1.4.0
+
+# 微信 iLink Bot 消息解密 (提供 Crypto 模块)
+pycryptodome>=3.19.0
+
+# 配置管理
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Windows TTS 依赖 (选择其一)
+pywin32>=306           # 方案1: win32com (推荐)
+# pyttsx3>=2.90        # 方案2: pyttsx3
+# comtypes>=1.4.1      # 方案3: comtypes
+
+# Edge TTS (在线降级)
+edge-tts>=6.1.9
+
+# 音频播放 (Edge TTS 需要)
+# 注意: 1.3.0 的 setup.py 有 bug 无法在新 Python 上构建，锁定 1.2.2
+playsound==1.2.2
+# pygame>=2.5.0        # 备选音频播放
+
+# 日志
+loguru>=0.7.0
+
+# 类型检查
+mypy>=1.0.0
+
+# 测试依赖
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# 开发依赖
+black>=23.0.0
+ruff>=0.0.280

@@ -1,0 +1,56 @@
+# MIMO_Connect - Voice Coding Middleware
+# Logs (may contain sensitive conversation data)
+vvm.log
+vvm2.log
+mimo_connect.log
+*.log
+
+# Environment & credentials
+.env
+.env.*
+!.env.example
+# Setup wizard draft (partially-filled fields, may contain secrets)
+.setup_draft.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Virtual env
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MiMo Code runtime data (sessions, exported memory, node_modules)
+# Contains private conversation history and machine-specific state.
+.mimocode/
+
+# Feishu stderr
+feishu_stderr.log
+feishu_stdout.log
+
+# Test caches
+.pytest_cache/
+
+# Generated TTS audio samples (binary, not source)
+mimo_emotion_test/
+
+# Local debug throwaways
+tests/test_body.json
+
+# Legacy archive of the previous project (kept locally, not published;
+# contains personal paths and is unreferenced by current code)
+vvm-archive/

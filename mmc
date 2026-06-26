@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# MIMO_Connect 统一启动器（Linux / macOS）。
+#
+# 用法：./mmc            首次未配置则进入分步引导，否则直接启动并持续打印日志
+#       ./mmc --force-setup   强制重新进入配置向导
+#
+# 命令行模式：不弹图形界面，日志直接输出到终端。
+set -euo pipefail
+
+# 解析脚本所在目录（支持软链接）。
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ROOT="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+cd "$ROOT"
+
+# 选择 Python：优先项目 venv，其次 python3。
+if [ -x "$ROOT/.venv/bin/python" ]; then
+  PY="$ROOT/.venv/bin/python"
+else
+  PY="$(command -v python3 || command -v python || true)"
+fi
+if [ -z "${PY:-}" ]; then
+  echo "[mmc] 未找到 Python，请先安装 Python 3.10+。" >&2
+  exit 1
+fi
+
+# 透传参数；--force-setup 映射为向导强制重配。
+exec "$PY" app_main.py --cli "$@"
