@@ -25,6 +25,15 @@ hiddenimports = [
     "openai",
 ]
 
+# 本项目自身的源码模块（cli_main.py 内为延迟导入，静态分析收不全，显式收集）。
+_local_pkgs = ["core", "agent", "platforms", "voice", "scripts"]
+for _pkg in _local_pkgs:
+    try:
+        hiddenimports += collect_submodules(_pkg)
+    except Exception:
+        pass
+hiddenimports.append("main")
+
 # 业务依赖（无 GUI）。Crypto 仅微信平台需要，按平台收集。
 _pkgs = ["lark_oapi", "langchain_openai", "edge_tts", "Crypto"]
 for pkg in _pkgs:
@@ -48,7 +57,7 @@ excludes = [
 
 a = Analysis(
     ["cli_main.py"],
-    pathex=[],
+    pathex=[SPECPATH],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

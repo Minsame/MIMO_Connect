@@ -11,6 +11,7 @@ import importlib.util
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -164,7 +165,15 @@ class WindowsTTSProvider(VoiceProvider):
         self._voice_gender = voice_gender
         self._rate = rate
         self._volume = volume
-        self._available = importlib.util.find_spec("win32com.client") is not None
+        # 仅 Windows 平台才探测 pywin32；其它平台（Linux/macOS）父包 win32com
+        # 不存在，find_spec 会直接抛错，这里统一判定为不可用，避免跨平台崩溃。
+        if sys.platform == "win32":
+            try:
+                self._available = importlib.util.find_spec("win32com.client") is not None
+            except (ImportError, ModuleNotFoundError):
+                self._available = False
+        else:
+            self._available = False
         if not self._available:
             logger.warning("pywin32 not installed, Windows TTS unavailable")
 
