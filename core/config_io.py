@@ -24,6 +24,13 @@ CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 # 引导过程中途退出时，已填写的字段暂存在这里，下次启动续填。
 DRAFT_PATH = PROJECT_ROOT / ".setup_draft.json"
 
+# 打包(onefile)时 .env.example / config.yaml 模板随程序解压到 sys._MEIPASS；
+# 源码运行时就在项目根。用于首次运行自动生成同目录配置文件。
+if getattr(_sys, "frozen", False):
+    _BUNDLE_DIR = Path(getattr(_sys, "_MEIPASS", PROJECT_ROOT))
+else:
+    _BUNDLE_DIR = PROJECT_ROOT
+
 # 各提供商默认 base_url / 模型，便于直接采用。
 PROVIDER_PRESETS: dict[str, dict[str, str]] = {
     "deepseek": {
@@ -244,3 +251,33 @@ def write_lang(lang: str, path: Path | None = None) -> None:
     env = read_env(path)
     env["MIMO_CONNECT_LANG"] = lang
     write_env(env, path)
+
+
+def ensure_runtime_files() -> None:
+    """首次运行时确保可执行同目录存在 .env 与 config.yaml（不覆盖已有）。
+
+    - 打包成单文件后，模板被解压到临时目录；这里把它们落到 exe 同目录，
+      使 .env / 日志 / config.yaml 持久化在用户可见、可编辑的位置。
+    - 已存在的文件一律保留，绝不覆盖用户配置。
+    """
+    import shutil
+
+    # .env：缺失则从 .env.example 复制一份占位，让用户/向导有文件可写。
+    if not ENV_PATH.exists():
+        example = _BUNDLE_DIR / ".env.example"
+        try:
+            if example.exists():
+                shutil.copyfile(example, ENV_PATH)
+            else:
+                ENV_PATH.write_text(_ENV_HEADER + "\n" + _ENV_HEADER2 + "\n", encoding="utf-8")
+        except Exception:
+            pass
+
+    # config.yaml：缺失则从打包模板复制（源码运行时通常已存在）。
+    if not CONFIG_PATH.exists():
+        template = _BUNDLE_DIR / "config.yaml"
+        try:
+            if template.exists() and template.resolve() != CONFIG_PATH.resolve():
+                shutil.copyfile(template, CONFIG_PATH)
+        except Exception:
+            pass

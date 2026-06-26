@@ -100,6 +100,8 @@ class AppController:
 
 
 def run_gui() -> int:
+    # 首次运行：在 exe 同目录自动创建 .env / config.yaml（不覆盖已有）。
+    config_io.ensure_runtime_files()
     app = QApplication(sys.argv)
     app.setApplicationName("MIMO_Connect")
     app.setQuitOnLastWindowClosed(False)  # 关窗口不退出，留在托盘

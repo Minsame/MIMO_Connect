@@ -22,6 +22,9 @@ def main() -> int:
     from dotenv import load_dotenv
     from core import config_io
 
+    # 首次运行：在可执行同目录自动创建 .env / config.yaml（不覆盖已有）。
+    config_io.ensure_runtime_files()
+
     force_setup = "--force-setup" in sys.argv
     if force_setup or not config_io.is_configured():
         from scripts import first_run_setup

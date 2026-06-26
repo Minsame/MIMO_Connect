@@ -10,6 +10,32 @@
 - **展示模式**：`/show` 细节模式（聚合推送）与 `/hide` 精简模式（只发开头与结尾），运行中可切换。
 - **语音合成**：MiMo TTS 主引擎，Windows TTS、Edge-TTS 逐级降级；富文本（代码、表格）自动跳过朗读。
 
+## 环境要求
+
+本项目提供两个相互独立的发行版，各自的环境要求如下。两者都依赖本机已安装 [MiMo Code CLI](https://github.com/XiaomiMiMo)（命令 `mimo` 可用，或在 `.env` 用 `MIMO_CODE_PATH` 指定路径），且运行时需要联网。
+
+### GUI 版（Windows 桌面）
+
+| 项目 | 要求 |
+| --- | --- |
+| 操作系统 | Windows 10 / 11（64 位） |
+| 运行 `MIMO_Connect.exe` | 无需额外环境，exe 自带 Python 运行时与全部依赖 |
+| 从源码运行 | Python ≥ 3.10，`pip install -r requirements.txt`（含 PySide6） |
+| 自行打包 | 在 Windows 上用 PyInstaller，依据 `MIMO_Connect.spec` |
+| 必备外部依赖 | MiMo Code CLI、网络 |
+
+### CLI 版（Linux 命令行）
+
+| 项目 | 要求 |
+| --- | --- |
+| 操作系统 | Linux x86_64（Ubuntu / Debian 等主流发行版） |
+| 运行打包好的 `MIMO_Connect-cli` | 无需安装 Python，单文件自带运行时；目标机 glibc 版本需不低于打包机 |
+| 从源码运行（`./mmc`） | Python ≥ 3.10，`pip install -r requirements.txt`（无需 PySide6） |
+| 自行打包 | 必须在 Linux 上进行（PyInstaller 不能跨平台）：Python ≥ 3.10 + `python3-pip python3-venv python3-dev build-essential` |
+| 必备外部依赖 | MiMo Code CLI、网络 |
+
+> 说明：PyInstaller 不支持跨平台编译，Windows 上打不出 Linux 可执行，反之亦然。CLI 版的单文件可执行必须在 Linux（或 WSL）上打包。
+
 ## 快速开始
 
 ### Windows：桌面应用（推荐）
@@ -21,9 +47,28 @@
 
 > 从源码运行 GUI：`python gui_main.py`；或在已建 venv 时双击 `first_run.bat` 自动装依赖并引导。
 
-### Linux / macOS：命令行
+### Linux：命令行（CLI 版）
+
+方式 A — 打包成单文件可执行（拷一个文件即可运行，目标机无需 Python）：
 
 ```bash
+# 1. 一次性装系统依赖（需要 sudo 密码）
+sudo apt-get update
+sudo apt-get install -y python3-pip python3-venv python3-dev build-essential
+
+# 2. 一键打包（脚本会自建隔离 venv、装依赖、调用 PyInstaller）
+bash build_linux_cli.sh
+
+# 3. 运行（首次自动在同目录创建 .env / config.yaml / 日志并进入引导）
+./dist/MIMO_Connect-cli
+./dist/MIMO_Connect-cli --force-setup   # 强制重新配置
+```
+
+方式 B — 已有 Python，直接用启动器跑（更轻，无需打包）：
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
 ./mmc                 # 首次未配置则进入分步引导，否则直接启动并持续打印日志
 ./mmc --force-setup   # 强制重新配置
 ```
@@ -62,7 +107,9 @@ MIMO_Connect/
 ├── main.py                 # 异步事件循环（引擎本体，被两个入口复用）
 ├── config.yaml             # 全局配置（LLM / TTS / CLI）
 ├── .env.example            # 环境变量模板
-├── MIMO_Connect.spec       # PyInstaller 打包配置（onefile + 精简 Qt）
+├── MIMO_Connect.spec       # GUI 版打包配置（Windows，onefile + 精简 Qt）
+├── MIMO_Connect-cli.spec   # CLI 版打包配置（Linux，无 Qt，体积更小）
+├── build_linux_cli.sh      # Linux 一键打包 CLI 版的脚本
 ├── first_run.bat           # Windows 一键装依赖 + 引导（源码运行用）
 ├── mmc / mmc.bat           # 统一启动器（Linux 命令行 / Windows GUI）
 ├── gui/                    # 桌面 GUI：引导向导、托盘、设置、日志窗口、i18n
