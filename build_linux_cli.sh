@@ -21,7 +21,7 @@ source .build-venv/bin/activate
 echo "[2/4] 安装运行依赖（不含 GUI）..."
 pip install --upgrade pip
 # CLI 版无需 PySide6/pywin32；只装运行所需。
-pip install langchain langchain-openai langchain-core openai numpy soundfile \
+pip install langchain langchain-openai langchain-core openai \
     lark-oapi pycryptodome pydantic pydantic-settings python-dotenv pyyaml \
     edge-tts httpx loguru
 

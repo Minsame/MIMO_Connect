@@ -10,8 +10,6 @@ langchain-core>=0.1.0
 
 # MiMo TTS 依赖
 openai>=1.0.0          # MiMo TTS API (OpenAI 兼容协议)
-numpy>=1.24.0          # 流式音频处理
-soundfile>=0.12.0      # 音频文件读写
 
 # 飞书/Lark Bot
 lark-oapi>=1.4.0
