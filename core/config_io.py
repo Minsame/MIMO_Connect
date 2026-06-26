@@ -12,7 +12,13 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+import sys as _sys
+if getattr(_sys, "frozen", False):
+    # PyInstaller 冻结后 __file__ 指向临时解压目录，
+    # 改用 exe 所在目录作为项目根，保证 .env/config.yaml 可持久化。
+    PROJECT_ROOT = Path(_sys.executable).resolve().parent
+else:
+    PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = PROJECT_ROOT / ".env"
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 # 引导过程中途退出时，已填写的字段暂存在这里，下次启动续填。
