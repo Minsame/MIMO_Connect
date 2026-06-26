@@ -12,6 +12,7 @@ from gui.log_view import LogView
 from gui.onboarding import OnboardingWizard
 from gui.settings import SettingsWindow
 from gui.tray import TrayController
+from gui.i18n import t
 
 
 class AppController:
@@ -59,21 +60,21 @@ class AppController:
         self._running = True
         self.tray.set_running(True)
         self.log_view.set_running(True)
-        self.tray.notify("MIMO_Connect", "引擎已启动")
+        self.tray.notify(t("app_name"), t("notify_engine_started"))
 
     def _on_stopped(self) -> None:
         self._running = False
         self.tray.set_running(False)
         self.log_view.set_running(False)
-        self.tray.notify("MIMO_Connect", "引擎已停止")
+        self.tray.notify(t("app_name"), t("notify_engine_stopped"))
 
     def _on_failed(self, msg: str) -> None:
         self._running = False
         self.tray.set_running(False)
         self.log_view.set_running(False)
-        self.log_view.append_line(f"[引擎错误] {msg}")
+        self.log_view.append_line(t("engine_error_prefix", msg=msg))
         self.log_view.show()
-        self.tray.notify("引擎启动失败", msg)
+        self.tray.notify(t("notify_engine_failed"), msg)
 
     def show_logs(self) -> None:
         self.log_view.show()
@@ -82,9 +83,14 @@ class AppController:
 
     def show_settings(self) -> None:
         self._settings_win = SettingsWindow()
+        self._settings_win.lang_changed.connect(self._on_lang_changed)
         self._settings_win.show()
         self._settings_win.raise_()
         self._settings_win.activateWindow()
+
+    def _on_lang_changed(self, _lang: str) -> None:
+        # 设置面板切换语言后，刷新常驻托盘菜单文案。
+        self.tray.retranslate()
 
     def quit(self) -> None:
         if self._runner and self._running:
@@ -111,10 +117,7 @@ def run_gui() -> int:
         load_dotenv(config_io.ENV_PATH, override=True)
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
-        QMessageBox.warning(
-            None, "托盘不可用",
-            "当前系统未提供系统托盘。应用仍会运行，可手动打开日志窗口。",
-        )
+        QMessageBox.warning(None, t("tray_unavailable_title"), t("tray_unavailable_body"))
 
     ctx = AppController(app)
     ctx.start_engine()  # 配置完成后自动启动引擎

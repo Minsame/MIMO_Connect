@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# MIMO_Connect 统一启动器（Linux / macOS）。
+# MIMO_Connect 命令行启动器（Linux / macOS）。
 #
-# 用法：./mmc            首次未配置则进入分步引导，否则直接启动并持续打印日志
-#       ./mmc --force-setup   强制重新进入配置向导
+# 用法：./mmc                首次未配置则进入分步引导，否则直接启动并持续打印日志
+#       ./mmc --force-setup  强制重新进入配置向导
 #
 # 命令行模式：不弹图形界面，日志直接输出到终端。
 set -euo pipefail
@@ -28,5 +28,5 @@ if [ -z "${PY:-}" ]; then
   exit 1
 fi
 
-# 透传参数；--force-setup 映射为向导强制重配。
-exec "$PY" app_main.py --cli "$@"
+# 透传参数（如 --force-setup）。
+exec "$PY" cli_main.py "$@"

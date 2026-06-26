@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from gui.theme import MONO_FAMILY, Palette, set_role
+from gui.i18n import t
 
 _LEVELS = ("ALL", "DEBUG", "INFO", "WARNING", "ERROR")
 _LEVEL_RANK = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 3}
@@ -36,7 +37,7 @@ class LogView(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("MIMO_Connect 运行日志")
+        self.setWindowTitle(t("log_window_title"))
         self.resize(880, 560)
 
         # 原始日志缓冲（用于过滤/搜索时重渲染）
@@ -78,9 +79,9 @@ class LogView(QWidget):
 
         self._dot = QLabel("\u25cf")
         self._dot.setStyleSheet(f"color: {Palette.neutral}; font-size: 14px;")
-        self._status = QLabel("已停止")
+        self._status = QLabel(t("log_status_stopped"))
         set_role(self._status, "title")
-        title = QLabel("MIMO_Connect 运行日志")
+        title = QLabel(t("log_window_title"))
         title.setStyleSheet("color: #5b6470;")
 
         self._counts = QLabel("")
@@ -105,27 +106,27 @@ class LogView(QWidget):
         lay.setSpacing(8)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("搜索日志关键字…")
+        self._search.setPlaceholderText(t("log_search_ph"))
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._on_filter_changed)
         self._search.setMaximumWidth(280)
 
-        lvl_label = QLabel("级别")
+        lvl_label = QLabel(t("log_level"))
         lvl_label.setStyleSheet("color: #5b6470;")
         self._cmb_level = QComboBox()
         self._cmb_level.addItems(_LEVELS)
         self._cmb_level.setCurrentText("ALL")
         self._cmb_level.currentTextChanged.connect(self._on_level_changed)
 
-        self._chk_autoscroll = QCheckBox("自动滚动")
+        self._chk_autoscroll = QCheckBox(t("log_autoscroll"))
         self._chk_autoscroll.setChecked(True)
         self._chk_autoscroll.toggled.connect(self._on_autoscroll_toggled)
 
-        btn_open = QPushButton("打开日志文件")
+        btn_open = QPushButton(t("log_open_file"))
         btn_open.clicked.connect(self._open_log_file)
-        btn_copy = QPushButton("复制")
+        btn_copy = QPushButton(t("log_copy"))
         btn_copy.clicked.connect(self._copy_all)
-        btn_clear = QPushButton("清空")
+        btn_clear = QPushButton(t("log_clear"))
         btn_clear.clicked.connect(self._clear)
 
         lay.addWidget(self._search)
@@ -143,10 +144,10 @@ class LogView(QWidget):
         """同步顶部状态指示（由 AppController 调用）。"""
         if running:
             self._dot.setStyleSheet(f"color: {Palette.success}; font-size: 14px;")
-            self._status.setText("运行中")
+            self._status.setText(t("log_status_running"))
         else:
             self._dot.setStyleSheet(f"color: {Palette.neutral}; font-size: 14px;")
-            self._status.setText("已停止")
+            self._status.setText(t("log_status_stopped"))
 
     def append_line(self, line: str) -> None:
         level = self._parse_level(line)

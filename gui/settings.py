@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -17,14 +18,17 @@ from PySide6.QtWidgets import (
 
 from core import config_io
 from gui.theme import set_role
+from gui.i18n import t, current_lang, set_lang, LANG_LABELS
 
 
 class SettingsWindow(QWidget):
     """非向导式的设置面板，供运行期随时调整配置。"""
 
+    lang_changed = Signal(str)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("MIMO_Connect 设置")
+        self.setWindowTitle(t("settings_title"))
         self.resize(560, 520)
         self._env = config_io.read_env()
         self._build_ui()
@@ -35,8 +39,20 @@ class SettingsWindow(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
+        # ---- 语言分组 ----
+        lang_box = QGroupBox(t("language"), self)
+        lang_form = QFormLayout(lang_box)
+        self.cmb_lang = QComboBox()
+        for code, label in LANG_LABELS:
+            self.cmb_lang.addItem(label, code)
+        idx = self.cmb_lang.findData(current_lang())
+        if idx >= 0:
+            self.cmb_lang.setCurrentIndex(idx)
+        lang_form.addRow(t("language"), self.cmb_lang)
+        layout.addWidget(lang_box)
+
         # ---- LLM 分组 ----
-        llm_box = QGroupBox("中间层 LLM（意图识别 / 段重写）", self)
+        llm_box = QGroupBox(t("settings_group_llm"), self)
         llm_form = QFormLayout(llm_box)
         self.cmb_provider = QComboBox()
         self.cmb_provider.addItems(list(config_io.PROVIDER_PRESETS.keys()))
@@ -45,14 +61,14 @@ class SettingsWindow(QWidget):
         self.ed_model = QLineEdit()
         self.ed_api_key = QLineEdit()
         self.ed_api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        llm_form.addRow("提供商", self.cmb_provider)
-        llm_form.addRow("API base_url", self.ed_base_url)
-        llm_form.addRow("模型", self.ed_model)
-        llm_form.addRow("API key", self.ed_api_key)
+        llm_form.addRow(t("field_provider"), self.cmb_provider)
+        llm_form.addRow(t("field_base_url"), self.ed_base_url)
+        llm_form.addRow(t("field_model"), self.ed_model)
+        llm_form.addRow(t("field_api_key"), self.ed_api_key)
         layout.addWidget(llm_box)
 
         # ---- 平台分组 ----
-        plat_box = QGroupBox("聊天平台", self)
+        plat_box = QGroupBox(t("settings_group_platform"), self)
         plat_form = QFormLayout(plat_box)
         self.cmb_platform = QComboBox()
         self.cmb_platform.addItems(["feishu", "weixin"])
@@ -63,37 +79,37 @@ class SettingsWindow(QWidget):
         self.ed_weixin_bot = QLineEdit()
         self.ed_weixin_token = QLineEdit()
         self.ed_weixin_token.setEchoMode(QLineEdit.EchoMode.Password)
-        plat_form.addRow("平台", self.cmb_platform)
-        plat_form.addRow("飞书 APP_ID", self.ed_feishu_id)
-        plat_form.addRow("飞书 APP_SECRET", self.ed_feishu_secret)
-        plat_form.addRow("微信 BOT_ID", self.ed_weixin_bot)
-        plat_form.addRow("微信 TOKEN", self.ed_weixin_token)
+        plat_form.addRow(t("field_platform"), self.cmb_platform)
+        plat_form.addRow(t("field_feishu_id"), self.ed_feishu_id)
+        plat_form.addRow(t("field_feishu_secret"), self.ed_feishu_secret)
+        plat_form.addRow(t("field_weixin_bot"), self.ed_weixin_bot)
+        plat_form.addRow(t("field_weixin_token"), self.ed_weixin_token)
         layout.addWidget(plat_box)
 
         # ---- 运行分组 ----
-        run_box = QGroupBox("运行配置", self)
+        run_box = QGroupBox(t("settings_group_run"), self)
         run_form = QFormLayout(run_box)
         self.ed_mimo_path = QLineEdit()
         self.ed_work_dir = QLineEdit()
         self.ed_mimo_model = QLineEdit()
         self.ed_mimo_key = QLineEdit()
         self.ed_mimo_key.setEchoMode(QLineEdit.EchoMode.Password)
-        run_form.addRow("mimo CLI 路径", self.ed_mimo_path)
-        run_form.addRow("工作目录", self.ed_work_dir)
-        run_form.addRow("MiMo 模型(可选)", self.ed_mimo_model)
-        run_form.addRow("MiMo TTS key(可选)", self.ed_mimo_key)
+        run_form.addRow(t("field_mimo_path"), self.ed_mimo_path)
+        run_form.addRow(t("field_work_dir"), self.ed_work_dir)
+        run_form.addRow(t("field_mimo_model"), self.ed_mimo_model)
+        run_form.addRow(t("field_mimo_key"), self.ed_mimo_key)
         layout.addWidget(run_box)
 
-        self.lbl_hint = QLabel("保存后需重启引擎方可生效（托盘菜单 → 停止/启动引擎）。", self)
+        self.lbl_hint = QLabel(t("settings_hint"), self)
         set_role(self.lbl_hint, "hint")
         layout.addWidget(self.lbl_hint)
 
         bar = QHBoxLayout()
         bar.addStretch(1)
-        btn_save = QPushButton("保存", self)
+        btn_save = QPushButton(t("btn_save"), self)
         btn_save.clicked.connect(self._save)
         set_role(btn_save, "primary")
-        btn_close = QPushButton("关闭", self)
+        btn_close = QPushButton(t("btn_close"), self)
         btn_close.clicked.connect(self.close)
         bar.addWidget(btn_save)
         bar.addWidget(btn_close)
@@ -147,7 +163,7 @@ class SettingsWindow(QWidget):
         preset = config_io.PROVIDER_PRESETS[provider]
         api_key = self.ed_api_key.text().strip()
         if not api_key:
-            QMessageBox.warning(self, "缺少 API key", "请填写所选提供商的 API key。")
+            QMessageBox.warning(self, t("missing_key_title"), t("missing_key_body"))
             return
         platform = self.cmb_platform.currentText()
         values = {
@@ -161,8 +177,14 @@ class SettingsWindow(QWidget):
             "MIMO_CODE_PATH": self.ed_mimo_path.text().strip(),
             "MIMO_CONNECT_WORK_DIR": self.ed_work_dir.text().strip(),
             "MIMO_CONNECT_MODEL": self.ed_mimo_model.text().strip(),
+            "MIMO_CONNECT_LANG": self.cmb_lang.currentData() or current_lang(),
         }
         config_io.write_env(values)
         config_io.sync_config_yaml(provider, self.ed_base_url.text().strip(), self.ed_model.text().strip())
-        QMessageBox.information(self, "已保存", "配置已写入 .env。重启引擎后生效。")
+        new_lang = self.cmb_lang.currentData() or current_lang()
+        lang_switched = new_lang != current_lang()
+        if lang_switched:
+            set_lang(new_lang, persist=False)  # .env 已含 MIMO_CONNECT_LANG，无需重复写
+            self.lang_changed.emit(new_lang)
+        QMessageBox.information(self, t("saved_title"), t("saved_body"))
         self.close()

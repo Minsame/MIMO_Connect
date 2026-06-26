@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QVBoxLayout,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from core import config_io
+from gui.i18n import t, current_lang, set_lang, LANG_LABELS
 from gui.theme import Palette
 
 
@@ -56,7 +58,7 @@ def _make_watermark():
     painter.setPen(QColor(255, 255, 255, 200))
     painter.setFont(QFont("Segoe UI", 9))
     painter.drawText(QRect(24, h - 96, w - 36, 80), Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap,
-                     "用飞书 / 微信\n驱动本地 MiMo Code")
+                     t("wiz_brand_sub"))
     painter.end()
     return pix
 
@@ -64,34 +66,50 @@ def _make_watermark():
 class WelcomePage(QWizardPage):
     def __init__(self, draft: dict[str, str] | None = None) -> None:
         super().__init__()
-        self.setTitle("欢迎使用 MIMO_Connect")
-        self.setSubTitle("用飞书 / 微信驱动本地 MiMo Code 编程。下面几步帮你完成首次配置。")
+        self.setTitle(t("welcome_title"))
+        self.setSubTitle(t("welcome_sub"))
         layout = QVBoxLayout(self)
-        msg = QLabel(
-            "这个向导将引导你设置：\n\n"
-            "  1. 中间层 LLM（用于意图识别）\n"
-            "  2. 聊天平台（飞书或微信）\n"
-            "  3. 本地 mimo CLI 位置与工作目录\n\n"
-            "全部配置会保存到项目的 .env 文件，随时可在设置中修改。"
-        )
-        msg.setWordWrap(True)
-        layout.addWidget(msg)
+
+        # 语言选择（首启即可切换，立即作用于整个向导）
+        lang_row = QHBoxLayout()
+        self.lbl_lang = QLabel(t("welcome_lang"))
+        self.cmb_lang = QComboBox()
+        for code, label in LANG_LABELS:
+            self.cmb_lang.addItem(label, code)
+        idx = self.cmb_lang.findData(current_lang())
+        if idx >= 0:
+            self.cmb_lang.setCurrentIndex(idx)
+        lang_row.addWidget(self.lbl_lang)
+        lang_row.addWidget(self.cmb_lang)
+        lang_row.addStretch(1)
+        layout.addLayout(lang_row)
+
+        self.msg = QLabel(t("welcome_body"))
+        self.msg.setWordWrap(True)
+        layout.addWidget(self.msg)
+        self.tip = None
         if draft:
-            tip = QLabel(
-                "↻ 检测到上次未完成的配置，已为你预填先前填写的内容，可直接继续。"
-            )
-            tip.setWordWrap(True)
-            tip.setStyleSheet("color: #1a7f37;")
-            layout.addWidget(tip)
+            self.tip = QLabel(t("welcome_draft_tip"))
+            self.tip.setWordWrap(True)
+            self.tip.setStyleSheet("color: #1a7f37;")
+            layout.addWidget(self.tip)
+
+    def retranslate(self) -> None:
+        self.setTitle(t("welcome_title"))
+        self.setSubTitle(t("welcome_sub"))
+        self.lbl_lang.setText(t("welcome_lang"))
+        self.msg.setText(t("welcome_body"))
+        if self.tip is not None:
+            self.tip.setText(t("welcome_draft_tip"))
 
 
 class LLMPage(QWizardPage):
     def __init__(self, draft: dict[str, str] | None = None) -> None:
         super().__init__()
         draft = draft or {}
-        self.setTitle("第 1 步 · 中间层 LLM")
-        self.setSubTitle("选择一个提供商并填入 API key（用于意图识别与文本整理）。")
-        form = QFormLayout(self)
+        self.setTitle(t("p1_title"))
+        self.setSubTitle(t("p1_sub"))
+        self.form = form = QFormLayout(self)
         self.cmb_provider = QComboBox()
         self.cmb_provider.addItems(list(config_io.PROVIDER_PRESETS.keys()))
         self.cmb_provider.currentTextChanged.connect(self._apply_preset)
@@ -99,10 +117,10 @@ class LLMPage(QWizardPage):
         self.ed_model = QLineEdit()
         self.ed_api_key = QLineEdit()
         self.ed_api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        form.addRow("提供商", self.cmb_provider)
-        form.addRow("API base_url", self.ed_base_url)
-        form.addRow("模型", self.ed_model)
-        form.addRow("API key", self.ed_api_key)
+        form.addRow(t("field_provider"), self.cmb_provider)
+        form.addRow(t("field_base_url"), self.ed_base_url)
+        form.addRow(t("field_model"), self.ed_model)
+        form.addRow(t("field_api_key"), self.ed_api_key)
         # 先按草稿恢复提供商，再据此填默认 base_url/model，最后用草稿覆盖。
         if draft.get("llm_provider") in config_io.PROVIDER_PRESETS:
             self.cmb_provider.setCurrentText(draft["llm_provider"])
@@ -119,6 +137,14 @@ class LLMPage(QWizardPage):
         self.registerField("llm_model", self.ed_model)
         self.registerField("llm_api_key*", self.ed_api_key)
 
+    def retranslate(self) -> None:
+        self.setTitle(t("p1_title"))
+        self.setSubTitle(t("p1_sub"))
+        self.form.labelForField(self.cmb_provider).setText(t("field_provider"))
+        self.form.labelForField(self.ed_base_url).setText(t("field_base_url"))
+        self.form.labelForField(self.ed_model).setText(t("field_model"))
+        self.form.labelForField(self.ed_api_key).setText(t("field_api_key"))
+
     def _apply_preset(self, provider: str) -> None:
         preset = config_io.PROVIDER_PRESETS.get(provider, {})
         self.ed_base_url.setText(preset.get("base_url", ""))
@@ -129,20 +155,20 @@ class PlatformPage(QWizardPage):
     def __init__(self, draft: dict[str, str] | None = None) -> None:
         super().__init__()
         draft = draft or {}
-        self.setTitle("第 2 步 · 聊天平台")
-        self.setSubTitle("选择消息平台。飞书配置最简单，推荐新手使用。")
-        form = QFormLayout(self)
+        self.setTitle(t("p2_title"))
+        self.setSubTitle(t("p2_sub"))
+        self.form = form = QFormLayout(self)
         self.cmb_platform = QComboBox()
         self.cmb_platform.addItems(["feishu", "weixin"])
         self.cmb_platform.currentTextChanged.connect(self._toggle)
         self.ed_feishu_id = QLineEdit()
         self.ed_feishu_secret = QLineEdit()
         self.ed_feishu_secret.setEchoMode(QLineEdit.EchoMode.Password)
-        self.lbl_weixin = QLabel("微信需扫码登录，首次启动时会自动弹出二维码。")
+        self.lbl_weixin = QLabel(t("p2_weixin_note"))
         self.lbl_weixin.setWordWrap(True)
-        form.addRow("平台", self.cmb_platform)
-        form.addRow("飞书 APP_ID", self.ed_feishu_id)
-        form.addRow("飞书 APP_SECRET", self.ed_feishu_secret)
+        form.addRow(t("field_platform"), self.cmb_platform)
+        form.addRow(t("field_feishu_id"), self.ed_feishu_id)
+        form.addRow(t("field_feishu_secret"), self.ed_feishu_secret)
         form.addRow("", self.lbl_weixin)
         if draft.get("platform") in ("feishu", "weixin"):
             self.cmb_platform.setCurrentText(draft["platform"])
@@ -154,6 +180,14 @@ class PlatformPage(QWizardPage):
         self.registerField("feishu_id", self.ed_feishu_id)
         self.registerField("feishu_secret", self.ed_feishu_secret)
         self._toggle(self.cmb_platform.currentText())
+
+    def retranslate(self) -> None:
+        self.setTitle(t("p2_title"))
+        self.setSubTitle(t("p2_sub"))
+        self.lbl_weixin.setText(t("p2_weixin_note"))
+        self.form.labelForField(self.cmb_platform).setText(t("field_platform"))
+        self.form.labelForField(self.ed_feishu_id).setText(t("field_feishu_id"))
+        self.form.labelForField(self.ed_feishu_secret).setText(t("field_feishu_secret"))
 
     def _toggle(self, platform: str) -> None:
         is_feishu = platform == "feishu"
@@ -172,18 +206,15 @@ class RuntimePage(QWizardPage):
     def __init__(self, draft: dict[str, str] | None = None) -> None:
         super().__init__()
         draft = draft or {}
-        self.setTitle("第 3 步 · 运行配置")
-        self.setSubTitle("确认本机 mimo CLI 位置与工作目录。")
+        self.setTitle(t("p3_title"))
+        self.setSubTitle(t("p3_sub"))
         layout = QVBoxLayout(self)
         # 未检测到 mimo CLI 时，在表单上方给出醒目提醒。
-        self.lbl_cli_warn = QLabel(
-            "⚠ 未自动检测到 mimo CLI。请手动填写其完整可执行文件路径；"
-            "留空则运行时按系统 PATH 查找（可能启动失败）。"
-        )
+        self.lbl_cli_warn = QLabel(t("p3_cli_warn"))
         self.lbl_cli_warn.setWordWrap(True)
         self.lbl_cli_warn.setStyleSheet("color: #b4690e;")
         layout.addWidget(self.lbl_cli_warn)
-        form = QFormLayout()
+        self.form = form = QFormLayout()
         layout.addLayout(form)
         self.ed_mimo_path = QLineEdit()
         detected = config_io.find_mimo_cli()
@@ -191,10 +222,10 @@ class RuntimePage(QWizardPage):
         if detected:
             self.lbl_cli_warn.setVisible(False)
             self.ed_mimo_path.setText(detected)
-            self.ed_mimo_path.setPlaceholderText("已自动检测")
+            self.ed_mimo_path.setPlaceholderText(t("p3_cli_detected_ph"))
         else:
             self.lbl_cli_warn.setVisible(True)
-            self.ed_mimo_path.setPlaceholderText("未检测到，留空则运行时按 PATH 查找")
+            self.ed_mimo_path.setPlaceholderText(t("p3_cli_blank_ph"))
         if draft_cli:
             self.ed_mimo_path.setText(draft_cli)
         self.ed_work_dir = QLineEdit()
@@ -209,14 +240,24 @@ class RuntimePage(QWizardPage):
         self.ed_mimo_key.setEchoMode(QLineEdit.EchoMode.Password)
         if draft.get("mimo_api_key"):
             self.ed_mimo_key.setText(draft["mimo_api_key"])
-        form.addRow("mimo CLI 路径", self.ed_mimo_path)
-        form.addRow("工作目录", self.ed_work_dir)
-        form.addRow("MiMo 模型(可选)", self.ed_mimo_model)
-        form.addRow("MiMo TTS key(可选)", self.ed_mimo_key)
+        form.addRow(t("field_mimo_path"), self.ed_mimo_path)
+        form.addRow(t("field_work_dir"), self.ed_work_dir)
+        form.addRow(t("field_mimo_model"), self.ed_mimo_model)
+        form.addRow(t("field_mimo_key"), self.ed_mimo_key)
         self.registerField("mimo_path", self.ed_mimo_path)
         self.registerField("work_dir", self.ed_work_dir)
         self.registerField("mimo_model", self.ed_mimo_model)
         self.registerField("mimo_key", self.ed_mimo_key)
+
+
+    def retranslate(self) -> None:
+        self.setTitle(t("p3_title"))
+        self.setSubTitle(t("p3_sub"))
+        self.lbl_cli_warn.setText(t("p3_cli_warn"))
+        self.form.labelForField(self.ed_mimo_path).setText(t("field_mimo_path"))
+        self.form.labelForField(self.ed_work_dir).setText(t("field_work_dir"))
+        self.form.labelForField(self.ed_mimo_model).setText(t("field_mimo_model"))
+        self.form.labelForField(self.ed_mimo_key).setText(t("field_mimo_key"))
 
 
 class OnboardingWizard(QWizard):
@@ -226,7 +267,7 @@ class OnboardingWizard(QWizard):
         super().__init__(parent)
         # 载入上次未完成的草稿，用于断点续填。
         self._draft = config_io.read_draft()
-        self.setWindowTitle("MIMO_Connect 首次配置")
+        self.setWindowTitle(t("wiz_title"))
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
         self.setOption(QWizard.WizardOption.NoBackButtonOnStartPage, True)
         self.setOption(QWizard.WizardOption.NoDefaultButton, False)
@@ -236,16 +277,40 @@ class OnboardingWizard(QWizard):
             self.setPixmap(QWizard.WizardPixmap.WatermarkPixmap, _make_watermark())
         except Exception:
             pass
-        self.addPage(WelcomePage(self._draft))
-        self.addPage(LLMPage(self._draft))
-        self.addPage(PlatformPage(self._draft))
-        self.addPage(RuntimePage(self._draft))
-        self.setButtonText(QWizard.WizardButton.FinishButton, "完成并启动")
-        self.setButtonText(QWizard.WizardButton.NextButton, "下一步")
-        self.setButtonText(QWizard.WizardButton.BackButton, "上一步")
-        self.setButtonText(QWizard.WizardButton.CancelButton, "取消")
+        self._welcome = WelcomePage(self._draft)
+        self._pages = [
+            self._welcome,
+            LLMPage(self._draft),
+            PlatformPage(self._draft),
+            RuntimePage(self._draft),
+        ]
+        for page in self._pages:
+            self.addPage(page)
+        # 首启语言选择：切换即刷新整个向导
+        self._welcome.cmb_lang.currentIndexChanged.connect(self._on_lang_changed)
+        self.setButtonText(QWizard.WizardButton.FinishButton, t("wiz_finish"))
+        self.setButtonText(QWizard.WizardButton.NextButton, t("wiz_next"))
+        self.setButtonText(QWizard.WizardButton.BackButton, t("wiz_back"))
+        self.setButtonText(QWizard.WizardButton.CancelButton, t("wiz_cancel"))
         # 每次离开一页时把已填字段写入草稿，支持中途关闭后续填。
         self.currentIdChanged.connect(self._persist_draft)
+
+    def _on_lang_changed(self, _idx: int) -> None:
+        code = self._welcome.cmb_lang.currentData()
+        if not code:
+            return
+        set_lang(code, persist=True)
+        self._retranslate_all()
+
+    def _retranslate_all(self) -> None:
+        self.setWindowTitle(t("wiz_title"))
+        self.setButtonText(QWizard.WizardButton.FinishButton, t("wiz_finish"))
+        self.setButtonText(QWizard.WizardButton.NextButton, t("wiz_next"))
+        self.setButtonText(QWizard.WizardButton.BackButton, t("wiz_back"))
+        self.setButtonText(QWizard.WizardButton.CancelButton, t("wiz_cancel"))
+        for page in self._pages:
+            if hasattr(page, "retranslate"):
+                page.retranslate()
 
     def _persist_draft(self, _page_id: int = -1) -> None:
         """把当前已填字段快照写入本地草稿（空值不覆盖）。"""

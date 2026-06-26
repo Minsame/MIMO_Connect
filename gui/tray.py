@@ -6,6 +6,8 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from gui.i18n import t
+
 
 def make_icon(color: str = "#2f6fed") -> QIcon:
     """生成圆角方形托盘图标（带状态色点），避免依赖外部资源文件。"""
@@ -40,6 +42,7 @@ class TrayController(QObject):
         self._ctx = app_ctx
         self._icon_running = make_icon("#2f9e44")  # 绿色=运行中
         self._icon_stopped = make_icon("#868e96")  # 灰色=已停止
+        self._running = False
         self.tray = QSystemTrayIcon(self._icon_stopped)
         self.tray.setToolTip("MIMO_Connect")
         self._build_menu()
@@ -47,16 +50,16 @@ class TrayController(QObject):
 
     def _build_menu(self) -> None:
         menu = QMenu()
-        self.act_status = QAction("状态：已停止")
+        self.act_status = QAction(t("tray_status_stopped"))
         self.act_status.setEnabled(False)
-        self.act_toggle = QAction("启动引擎")
+        self.act_toggle = QAction(t("tray_start"))
         self.act_toggle.triggered.connect(self._ctx.toggle_engine)
-        self.act_logs = QAction("查看日志")
+        self.act_logs = QAction(t("tray_logs"))
         self.act_logs.triggered.connect(self._ctx.show_logs)
-        self.act_settings = QAction("设置")
+        self.act_settings = QAction(t("tray_settings"))
         self.act_settings.triggered.connect(self._ctx.show_settings)
-        act_quit = QAction("退出")
-        act_quit.triggered.connect(self._ctx.quit)
+        self.act_quit = QAction(t("tray_quit"))
+        self.act_quit.triggered.connect(self._ctx.quit)
 
         menu.addAction(self.act_status)
         menu.addSeparator()
@@ -64,7 +67,7 @@ class TrayController(QObject):
         menu.addAction(self.act_logs)
         menu.addAction(self.act_settings)
         menu.addSeparator()
-        menu.addAction(act_quit)
+        menu.addAction(self.act_quit)
         self.tray.setContextMenu(menu)
 
     def _on_activated(self, reason) -> None:
@@ -73,14 +76,22 @@ class TrayController(QObject):
             self._ctx.show_logs()
 
     def set_running(self, running: bool) -> None:
+        self._running = running
         if running:
             self.tray.setIcon(self._icon_running)
-            self.act_status.setText("状态：运行中")
-            self.act_toggle.setText("停止引擎")
+            self.act_status.setText(t("tray_status_running"))
+            self.act_toggle.setText(t("tray_stop"))
         else:
             self.tray.setIcon(self._icon_stopped)
-            self.act_status.setText("状态：已停止")
-            self.act_toggle.setText("启动引擎")
+            self.act_status.setText(t("tray_status_stopped"))
+            self.act_toggle.setText(t("tray_start"))
+
+    def retranslate(self) -> None:
+        """语言切换后刷新托盘菜单文案。"""
+        self.act_logs.setText(t("tray_logs"))
+        self.act_settings.setText(t("tray_settings"))
+        self.act_quit.setText(t("tray_quit"))
+        self.set_running(self._running)
 
     def notify(self, title: str, message: str) -> None:
         self.tray.showMessage(title, message, self._icon_running, 4000)

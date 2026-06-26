@@ -356,7 +356,16 @@ def main() -> int:
     global LANG
     force = "--force" in sys.argv
 
-    LANG = choose_language()
+    # 已保存过语言偏好则沿用，否则询问，并立即写回 .env 供 GUI/后续复用。
+    saved_lang = config_io.read_env().get("MIMO_CONNECT_LANG", "").strip().lower()
+    if saved_lang in ("zh", "en"):
+        LANG = saved_lang
+    else:
+        LANG = choose_language()
+    try:
+        config_io.write_lang(LANG)
+    except Exception:
+        pass
 
     _hr()
     print(t("title"))
@@ -468,6 +477,7 @@ def main() -> int:
         "MIMO_CODE_PATH": mimo_code_path,
         "MIMO_CONNECT_WORK_DIR": work_dir,
         "MIMO_CONNECT_MODEL": agent_model,
+        "MIMO_CONNECT_LANG": LANG,
     }
 
     _hr()
@@ -490,7 +500,8 @@ def main() -> int:
 
     print()
     print(t("done"))
-    print("    start_mmc.bat   or   python main.py")
+    print("    mmc            (Windows GUI)  |  ./mmc  (Linux/macOS CLI)")
+    print("    python gui_main.py   or   python cli_main.py")
     return 0
 
 

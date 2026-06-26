@@ -37,18 +37,22 @@ def setup_logging(config: Optional[dict[str, Any]] = None, log_file: str = "mimo
         level = config.get("logging", {}).get("level", "INFO")
     fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     import io
-    stderr_utf8 = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    # 控制台处理器：TTY 下分级着色，非 TTY（文件/管道）退化为纯文本。
-    console = logging.StreamHandler(stderr_utf8)
-    try:
-        from core.term import ColorFormatter, supports_color
-        console.setFormatter(ColorFormatter(use_color=supports_color(stderr_utf8)))
-    except Exception:
-        console.setFormatter(logging.Formatter(fmt, datefmt="%H:%M:%S"))
-    handlers: list[logging.Handler] = [console]
+    handlers: list[logging.Handler] = []
+    # windowed/onefile exe 可能没有控制台（sys.stderr 为 None），此时跳过控制台处理器。
+    if getattr(sys, "stderr", None) is not None and getattr(sys.stderr, "buffer", None) is not None:
+        stderr_utf8 = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        # 控制台处理器：TTY 下分级着色，非 TTY（文件/管道）退化为纯文本。
+        console = logging.StreamHandler(stderr_utf8)
+        try:
+            from core.term import ColorFormatter, supports_color
+            console.setFormatter(ColorFormatter(use_color=supports_color(stderr_utf8)))
+        except Exception:
+            console.setFormatter(logging.Formatter(fmt, datefmt="%H:%M:%S"))
+        handlers.append(console)
     if log_file:
         from logging.handlers import RotatingFileHandler
-        log_path = Path(__file__).parent / log_file
+        from core import config_io
+        log_path = config_io.PROJECT_ROOT / log_file
         fh = RotatingFileHandler(str(log_path), maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
         fh.setFormatter(logging.Formatter(fmt))  # 文件始终纯文本
         handlers.append(fh)

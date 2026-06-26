@@ -196,3 +196,51 @@ def clear_draft(path: Path | None = None) -> None:
         pass
     except Exception:
         pass
+
+
+# ---- 语言偏好（GUI 与 CLI 共用，存于 .env 的 MIMO_CONNECT_LANG）----
+
+SUPPORTED_LANGS = ("zh", "en")
+
+
+def detect_system_lang() -> str:
+    """探测系统界面语言，返回 "zh" 或 "en"。"""
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            lang_id = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+            if (lang_id & 0xFF) == 0x04:  # 主语言 ID 0x04 == 中文
+                return "zh"
+        except Exception:
+            pass
+    blob = ""
+    try:
+        import locale
+
+        blob += (locale.getdefaultlocale()[0] or "") + " "
+    except Exception:
+        pass
+    blob += os.environ.get("LANG", "") + " " + os.environ.get("LC_ALL", "")
+    return "zh" if ("zh" in blob.lower() or "chinese" in blob.lower()) else "en"
+
+
+def read_lang(path: Path | None = None) -> str:
+    """读取已保存的语言偏好；缺失或非法时回退到系统语言探测。"""
+    env = read_env(path)
+    val = (env.get("MIMO_CONNECT_LANG") or "").strip().lower()
+    if val in SUPPORTED_LANGS:
+        return val
+    return detect_system_lang()
+
+
+def write_lang(lang: str, path: Path | None = None) -> None:
+    """把语言偏好写回 .env，保留其余键值不变。"""
+    if path is None:
+        path = ENV_PATH
+    lang = lang.strip().lower()
+    if lang not in SUPPORTED_LANGS:
+        lang = "zh"
+    env = read_env(path)
+    env["MIMO_CONNECT_LANG"] = lang
+    write_env(env, path)
