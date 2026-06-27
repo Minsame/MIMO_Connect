@@ -1,4 +1,4 @@
-# VVM (Vibe Voice Middleware) 依赖
+# MIMO_Connect 依赖
 
 # LLM 依赖
 langchain-openai>=0.0.8
@@ -27,6 +27,9 @@ pywin32>=306           # 方案1: win32com (推荐)
 
 # Edge TTS (在线降级)
 edge-tts>=6.1.9
+
+# GUI 版（Windows 桌面）依赖；CLI 版不需要
+PySide6>=6.5.0
 
 # 类型检查
 mypy>=1.0.0

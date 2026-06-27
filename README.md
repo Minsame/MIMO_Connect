@@ -30,7 +30,7 @@
 | --- | --- |
 | 操作系统 | Linux x86_64（Ubuntu / Debian 等主流发行版） |
 | 运行打包好的 `MIMO_Connect-cli` | 无需安装 Python，单文件自带运行时；目标机 glibc 版本需不低于打包机 |
-| 从源码运行（`./mmc`） | Python ≥ 3.10，`pip install -r requirements.txt`（无需 PySide6） |
+| 从源码运行（`./mmc`） | Python ≥ 3.10，`bash install.sh`（自动装运行依赖，不含 PySide6） |
 | 自行打包 | 必须在 Linux 上进行（PyInstaller 不能跨平台）：Python ≥ 3.10 + `python3-pip python3-venv python3-dev build-essential` |
 | 必备外部依赖 | MiMo Code CLI、网络 |
 
@@ -161,7 +161,7 @@ MIMO_Connect/
 
 ## 中间层命令
 
-在聊天窗口直接发送：`/show` 细节模式、`/hide` 精简模式、`/model` 查看当前模型、`/model <名称>` 切换模型、`/models` 列出可用模型、`/abort` 中断当前任务、`/help` 帮助。
+在聊天窗口直接发送：`/show` 细节模式、`/hide` 精简模式、`/model` 查看当前模型、`/model <名称>` 切换模型、`/models` 列出可用模型、`/abort`（或 `/stop`）中断当前任务、`/connect` 查看接入提示、`/help` 帮助。
 
 ## 测试
 
