@@ -5,6 +5,10 @@ vvm2.log
 mimo_connect.log
 *.log
 
+# Daemon runtime PID file (Linux/macOS CLI)
+mimo_connect.pid
+*.pid
+
 # Environment & credentials
 .env
 .env.*

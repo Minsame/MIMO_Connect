@@ -223,8 +223,27 @@ async def run(config_path: str = "config.yaml") -> None:
         except NotImplementedError:
             pass
 
+    # 引擎主循环与停止事件竞速：收到 SIGINT/SIGTERM（stop_event.set）后，
+    # 主动取消引擎任务，让平台 poll 循环的 CancelledError 分支优雅退出，
+    # 而不是干等阻塞调用返回。
+    engine_task = asyncio.ensure_future(engine.start())
+    stop_task = asyncio.ensure_future(stop_event.wait())
     try:
-        await engine.start()
+        done, pending = await asyncio.wait(
+            {engine_task, stop_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if stop_task in done and not engine_task.done():
+            engine_task.cancel()
+            try:
+                await engine_task
+            except asyncio.CancelledError:
+                pass
+        for task in pending:
+            task.cancel()
+        # 引擎自身异常需传播以便上报。
+        if engine_task in done:
+            engine_task.result()
     except KeyboardInterrupt:
         pass
     finally:

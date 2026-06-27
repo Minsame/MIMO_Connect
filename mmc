@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 # MIMO_Connect 命令行启动器（Linux / macOS）。
 #
-# 用法：./mmc                首次未配置则进入分步引导，否则直接启动并持续打印日志
-#       ./mmc --force-setup  强制重新进入配置向导
+# 引擎在后台运行，前台只打印启动结果即返回，不常驻刷日志。
+# 常用子命令：
+#   ./mmc            启动引擎（后台）
+#   ./mmc restart    重启引擎（重新读取 .env / config.yaml）；可简写 res
+#   ./mmc stop       停止后台引擎
+#   ./mmc status     查看运行状态
+#   ./mmc config     调起配置引导，完成后自动重启引擎
+#   ./mmc logs -f    实时跟随日志（Ctrl-C 退出）
+#   ./mmc help       查看完整帮助
 #
-# 命令行模式：不弹图形界面，日志直接输出到终端。
+# 本脚本只负责选 Python 并把全部参数透传给 cli_main.py。
 set -euo pipefail
 
 # 解析脚本所在目录（支持软链接）。

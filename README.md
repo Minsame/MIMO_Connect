@@ -57,10 +57,17 @@ bash install.sh          # 探测/安装 Python + 建 .venv + 装运行依赖，
 # 国内网络可加镜像加速：
 # MMC_PIP_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple bash install.sh
 
-./mmc                    # 首次进入分步引导，配置完成后直接运行并持续打印日志
-./mmc --force-setup      # 重新配置
+./mmc                    # 首次进入分步引导；之后启动引擎到后台，打印启动结果即返回
+./mmc status             # 查看运行状态（PID / 平台 / 模型 / 工作目录）
+./mmc logs -f            # 实时跟随日志（Ctrl-C 退出，引擎仍在后台）
+./mmc restart            # 重启引擎（重新读取 .env / config.yaml）；可简写 res
+./mmc stop               # 停止后台引擎
+./mmc config             # 调起配置引导，完成后自动重启引擎
+./mmc help               # 查看完整命令
 # 或装完即跑：bash install.sh --run
 ```
+
+> Linux CLI 默认把引擎拉到后台运行，不再占用终端持续刷日志；用 `mmc logs -f` 按需查看日志，用 `mmc status` 查看状态。
 
 方式 B — 打包成单文件可执行（拷一个文件即可分发到无 Python 的机器）：
 
@@ -74,7 +81,11 @@ bash build_linux_cli.sh
 
 # 3. 运行（首次自动在同目录创建 .env / config.yaml / 日志并进入引导）
 ./dist/MIMO_Connect-cli
-./dist/MIMO_Connect-cli --force-setup   # 强制重新配置
+./dist/MIMO_Connect-cli status          # 查看运行状态
+./dist/MIMO_Connect-cli logs -f         # 实时跟随日志
+./dist/MIMO_Connect-cli restart         # 重启引擎（可简写 res）
+./dist/MIMO_Connect-cli stop            # 停止后台引擎
+./dist/MIMO_Connect-cli config          # 重新配置，完成后自动重启
 ```
 
 命令行向导同样支持中文 / 英文（启动时选择，偏好写入 `.env` 的 `MIMO_CONNECT_LANG`，与 GUI 共用）。
