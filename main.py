@@ -52,7 +52,9 @@ def setup_logging(config: Optional[dict[str, Any]] = None, log_file: str = "mimo
     if log_file:
         from logging.handlers import RotatingFileHandler
         from core import config_io
-        log_path = config_io.PROJECT_ROOT / log_file
+        # 日志落到用户级数据目录（与 .env/config.yaml 同处），避免写只读安装目录。
+        config_io.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = config_io.LOG_PATH if log_file == "mimo_connect.log" else config_io.DATA_DIR / log_file
         fh = RotatingFileHandler(str(log_path), maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
         fh.setFormatter(logging.Formatter(fmt))  # 文件始终纯文本
         handlers.append(fh)
@@ -62,7 +64,8 @@ def setup_logging(config: Optional[dict[str, Any]] = None, log_file: str = "mimo
 def load_config() -> dict[str, Any]:
     try:
         import yaml  # type: ignore[import-untyped]
-        config_path = _PROJECT_ROOT / "config.yaml"
+        from core import config_io
+        config_path = config_io.CONFIG_PATH
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}

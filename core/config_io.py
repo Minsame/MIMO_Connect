@@ -15,14 +15,44 @@ from typing import Optional
 import sys as _sys
 if getattr(_sys, "frozen", False):
     # PyInstaller 冻结后 __file__ 指向临时解压目录，
-    # 改用 exe 所在目录作为项目根，保证 .env/config.yaml 可持久化。
+    # 改用 exe 所在目录作为项目根（仅用于展示/定位模板）。
     PROJECT_ROOT = Path(_sys.executable).resolve().parent
 else:
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ENV_PATH = PROJECT_ROOT / ".env"
-CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+
+
+def _resolve_data_dir() -> Path:
+    """决定配置/日志/PID 等可写数据的落点目录。
+
+    决策顺序（先命中先用）：
+      1. 环境变量 MIMO_CONNECT_HOME 显式指定；
+      2. 向后兼容：可执行/项目同目录已存在 .env，则继续沿用旧位置，
+         避免老用户升级后“配置突然消失”；
+      3. 默认用户级目录 ~/.config/mimo_connect（遵循 XDG_CONFIG_HOME）。
+
+    这样无论 mmc 被软链到 PATH 何处、用源码还是单文件运行，
+    都能稳定读写同一份用户配置，而不会落到 /usr/local/bin 等只读系统目录。
+    """
+    env_home = os.environ.get("MIMO_CONNECT_HOME", "").strip()
+    if env_home:
+        return Path(env_home).expanduser()
+    # 向后兼容旧布局：可执行/项目同目录已有 .env 就继续用那里。
+    legacy = PROJECT_ROOT / ".env"
+    if legacy.exists():
+        return PROJECT_ROOT
+    xdg = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
+    return base / "mimo_connect"
+
+
+DATA_DIR = _resolve_data_dir()
+ENV_PATH = DATA_DIR / ".env"
+CONFIG_PATH = DATA_DIR / "config.yaml"
 # 引导过程中途退出时，已填写的字段暂存在这里，下次启动续填。
-DRAFT_PATH = PROJECT_ROOT / ".setup_draft.json"
+DRAFT_PATH = DATA_DIR / ".setup_draft.json"
+# 运行时产物：日志与守护进程 PID 也落在数据目录。
+LOG_PATH = DATA_DIR / "mimo_connect.log"
+PID_PATH = DATA_DIR / "mimo_connect.pid"
 
 # 打包(onefile)时 .env.example / config.yaml 模板随程序解压到 sys._MEIPASS；
 # 源码运行时就在项目根。用于首次运行自动生成同目录配置文件。
@@ -261,6 +291,12 @@ def ensure_runtime_files() -> None:
     - 已存在的文件一律保留，绝不覆盖用户配置。
     """
     import shutil
+
+    # 用户级数据目录首次可能不存在，先确保它在，再落地各文件。
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
     # .env：缺失则从 .env.example 复制一份占位，让用户/向导有文件可写。
     if not ENV_PATH.exists():

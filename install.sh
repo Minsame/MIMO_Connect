@@ -81,13 +81,39 @@ if [ -n "${MMC_PIP_MIRROR:-}" ]; then PIP_ARGS=(-i "$MMC_PIP_MIRROR"); fi
 # 确保启动器可执行（git 拉取后可能丢失 +x 位）。
 chmod +x mmc 2>/dev/null || true
 
+# 软链 mmc 到用户级 bin，实现任意目录直接 `mmc` 启动。
+# mmc 脚本内部会解析软链回真实项目目录，因此 .venv / cli_main.py 仍能定位。
+LINK_DIR="$HOME/.local/bin"
+LINK_PATH="$LINK_DIR/mmc"
+LINKED=0
+mkdir -p "$LINK_DIR"
+if ln -sf "$ROOT/mmc" "$LINK_PATH" 2>/dev/null; then
+  LINKED=1
+fi
+
 echo
 echo "============================================================"
 echo "  安装完成。"
-echo "  启动方式："
-echo "    ./mmc                 # 首次进入分步引导，之后直接运行"
-echo "    ./mmc --force-setup   # 重新配置"
-echo "  日志：mimo_connect.log（与脚本同目录）"
+if [ "$LINKED" = "1" ]; then
+  echo "  已软链到：$LINK_PATH"
+  case ":$PATH:" in
+    *":$LINK_DIR:"*)
+      echo "  启动方式（任意目录）："
+      echo "    mmc                 # 首次进入分步引导，之后直接运行"
+      echo "    mmc --force-setup   # 重新配置"
+      ;;
+    *)
+      echo "  注意：$LINK_DIR 不在 PATH 中。请加入后即可任意目录运行 mmc："
+      echo "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc && source ~/.bashrc"
+      echo "  在此之前可用： $ROOT/mmc"
+      ;;
+  esac
+else
+  echo "  启动方式："
+  echo "    ./mmc                 # 首次进入分步引导，之后直接运行"
+  echo "    ./mmc --force-setup   # 重新配置"
+fi
+echo "  配置与日志目录：\${MIMO_CONNECT_HOME:-\${XDG_CONFIG_HOME:-~/.config}/mimo_connect}"
 echo "============================================================"
 
 # 3) 可选：装完直接运行。

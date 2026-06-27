@@ -43,7 +43,7 @@
 直接运行打包好的 `MIMO_Connect.exe`（单文件，约 85MB，自带 Python 与依赖，无需另装环境）。
 首次启动会进入图形化引导向导（可在欢迎页选择中文 / 英文界面），依次配置中间层 LLM、聊天平台凭证、本地 mimo CLI 路径与工作目录。配置完成后程序常驻系统托盘：右键托盘图标可启停引擎、打开实时日志窗口、进入设置面板（含语言切换）。
 
-配置文件 `.env` 与日志 `mimo_connect.log` 都保存在 exe 同目录。
+配置文件 `.env` 与日志 `mimo_connect.log` 默认保存在用户级目录 `%USERPROFILE%\.config\mimo_connect\`（可用环境变量 `MIMO_CONNECT_HOME` 覆盖）；若 exe 同目录已存在 `.env`（旧版本布局），则继续沿用同目录，升级不丢配置。
 
 > 从源码运行 GUI：`python gui_main.py`；或在已建 venv 时双击 `first_run.bat` 自动装依赖并引导。
 
@@ -69,6 +69,8 @@ bash install.sh          # 探测/安装 Python + 建 .venv + 装运行依赖，
 
 > Linux CLI 默认把引擎拉到后台运行，不再占用终端持续刷日志；用 `mmc logs -f` 按需查看日志，用 `mmc status` 查看状态。
 
+> `install.sh` 会把 `mmc` 软链到 `~/.local/bin/mmc`，若该目录在 PATH 中即可在任意目录直接 `mmc`（脚本会自动解析软链定位项目）；否则用 `./mmc`。配置与日志默认落在 `~/.config/mimo_connect/`（遵循 `XDG_CONFIG_HOME`，可用 `MIMO_CONNECT_HOME` 覆盖）；旧版本在项目根已有 `.env` 时会继续沿用项目根，避免升级后配置丢失。
+
 方式 B — 打包成单文件可执行（拷一个文件即可分发到无 Python 的机器）：
 
 ```bash
@@ -79,7 +81,8 @@ sudo apt-get install -y python3-pip python3-venv python3-dev build-essential
 # 2. 一键打包（脚本会自建隔离 venv、装依赖、调用 PyInstaller）
 bash build_linux_cli.sh
 
-# 3. 运行（首次自动在同目录创建 .env / config.yaml / 日志并进入引导）
+# 3. 运行（首次自动创建 .env / config.yaml / 日志并进入引导）
+#    配置与日志默认落在 ~/.config/mimo_connect/（可用 MIMO_CONNECT_HOME 覆盖）
 ./dist/MIMO_Connect-cli
 ./dist/MIMO_Connect-cli status          # 查看运行状态
 ./dist/MIMO_Connect-cli logs -f         # 实时跟随日志

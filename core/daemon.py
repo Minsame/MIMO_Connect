@@ -19,8 +19,9 @@ from pathlib import Path
 
 from core import config_io
 
-PID_PATH: Path = config_io.PROJECT_ROOT / "mimo_connect.pid"
-LOG_PATH: Path = config_io.PROJECT_ROOT / "mimo_connect.log"
+# 与 config_io 共用同一份用户级数据目录路径，避免落到只读安装目录。
+PID_PATH: Path = config_io.PID_PATH
+LOG_PATH: Path = config_io.LOG_PATH
 
 
 def _read_pid() -> int | None:
@@ -61,6 +62,7 @@ def running_pid() -> int | None:
 
 
 def _write_pid(pid: int) -> None:
+    PID_PATH.parent.mkdir(parents=True, exist_ok=True)
     PID_PATH.write_text(str(pid), encoding="utf-8")
 
 

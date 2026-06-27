@@ -35,3 +35,9 @@ deactivate
 echo
 echo "完成：dist/MIMO_Connect-cli"
 echo "运行：./dist/MIMO_Connect-cli   （首次会自动建配置并进入引导）"
+echo
+echo "可选：软链为全局 mmc，任意目录直接启动："
+echo "  mkdir -p ~/.local/bin && ln -sf \"$ROOT/dist/MIMO_Connect-cli\" ~/.local/bin/mmc"
+echo "  # 若 ~/.local/bin 不在 PATH："
+echo "  #   echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc && source ~/.bashrc"
+echo "配置与日志目录：\${MIMO_CONNECT_HOME:-\${XDG_CONFIG_HOME:-~/.config}/mimo_connect}"
