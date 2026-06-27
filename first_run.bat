@@ -64,17 +64,17 @@ if errorlevel 1 (
 )
 echo.
 
-REM ---- 启动 ----
-echo 启动 MIMO_Connect ...
+REM ---- 启动 GUI（与双击 MIMO_Connect.exe 体验一致：托盘 + 设置 + 日志窗口）----
+echo 启动 MIMO_Connect 图形界面 ...
 echo ============================================
 echo.
-"%PY%" main.py
-set "EC=%ERRORLEVEL%"
-
-echo.
-if "%EC%"=="0" (
-    echo [MIMO_Connect] 已正常退出。
+if exist ".venv\Scripts\pythonw.exe" (
+    start "" ".venv\Scripts\pythonw.exe" gui_main.py
 ) else (
-    echo [MIMO_Connect] 退出，错误码 %EC%。
+    start "" pythonw gui_main.py
 )
+echo [MIMO_Connect] 图形界面已启动（系统托盘可见）。
+echo 如需命令行模式（持续打印日志），改用： mmc.bat --cli
+echo 本窗口可以关闭。
+echo.
 pause
