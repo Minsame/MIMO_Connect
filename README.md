@@ -49,10 +49,23 @@
 
 ### Linux：命令行（CLI 版）
 
-方式 A — 打包成单文件可执行（拷一个文件即可运行，目标机无需 Python）：
+方式 A（推荐）— 一键智能安装：脚本自动探测 Python，>= 3.10 直接建隔离 venv 装依赖；没有或过低则用系统包管理器（apt/dnf/pacman/zypper/brew）安装后再继续。
 
 ```bash
-# 1. 一次性装系统依赖（需要 sudo 密码）
+git clone <仓库地址> MIMO_Connect && cd MIMO_Connect
+bash install.sh          # 探测/安装 Python + 建 .venv + 装运行依赖，最后提示启动方式
+# 国内网络可加镜像加速：
+# MMC_PIP_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple bash install.sh
+
+./mmc                    # 首次进入分步引导，配置完成后直接运行并持续打印日志
+./mmc --force-setup      # 重新配置
+# 或装完即跑：bash install.sh --run
+```
+
+方式 B — 打包成单文件可执行（拷一个文件即可分发到无 Python 的机器）：
+
+```bash
+# 1. 一次性装系统依赖（需要 sudo 密码，编译扩展所需）
 sudo apt-get update
 sudo apt-get install -y python3-pip python3-venv python3-dev build-essential
 
@@ -62,15 +75,6 @@ bash build_linux_cli.sh
 # 3. 运行（首次自动在同目录创建 .env / config.yaml / 日志并进入引导）
 ./dist/MIMO_Connect-cli
 ./dist/MIMO_Connect-cli --force-setup   # 强制重新配置
-```
-
-方式 B — 已有 Python，直接用启动器跑（更轻，无需打包）：
-
-```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-./mmc                 # 首次未配置则进入分步引导，否则直接启动并持续打印日志
-./mmc --force-setup   # 强制重新配置
 ```
 
 命令行向导同样支持中文 / 英文（启动时选择，偏好写入 `.env` 的 `MIMO_CONNECT_LANG`，与 GUI 共用）。
@@ -109,6 +113,7 @@ MIMO_Connect/
 ├── .env.example            # 环境变量模板
 ├── MIMO_Connect.spec       # GUI 版打包配置（Windows，onefile + 精简 Qt）
 ├── MIMO_Connect-cli.spec   # CLI 版打包配置（Linux，无 Qt，体积更小）
+├── install.sh              # Linux/macOS 一键智能安装（探测/装 Python + venv + 依赖）
 ├── build_linux_cli.sh      # Linux 一键打包 CLI 版的脚本
 ├── first_run.bat           # Windows 一键装依赖 + 引导（源码运行用）
 ├── mmc / mmc.bat           # 统一启动器（Linux 命令行 / Windows GUI）

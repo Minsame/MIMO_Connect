@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# MIMO_Connect 一键安装（Linux / macOS，源码运行方式）。
+#
+# 行为：
+#   1. 探测系统 Python，>= 3.10 直接用；否则尝试用系统包管理器安装。
+#   2. 在项目内建隔离虚拟环境 .venv 并安装运行依赖（不含 GUI / 开发工具）。
+#   3. 装好后打印启动方式。
+#
+# 用法：bash install.sh
+#       bash install.sh --run   # 装完直接启动（首次会进入分步引导）
+#       MMC_PIP_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple bash install.sh   # 国内镜像加速
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+# 判断给定 python 是否 >= 3.10。
+py_ok() {
+  local py="$1"
+  command -v "$py" >/dev/null 2>&1 || return 1
+  "$py" -c "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 10) else 1)" >/dev/null 2>&1
+}
+
+# 1) 找一个合适的 Python。
+PY=""
+for cand in python3 python python3.13 python3.12 python3.11 python3.10; do
+  if py_ok "$cand"; then PY="$cand"; break; fi
+done
+
+if [ -z "$PY" ]; then
+  echo "[install] 未发现 Python >= 3.10，尝试用系统包管理器安装 ..."
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y python3 python3-venv python3-pip
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y python3 python3-pip
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -Sy --noconfirm python python-pip
+  elif command -v zypper >/dev/null 2>&1; then
+    sudo zypper install -y python3 python3-pip
+  elif command -v brew >/dev/null 2>&1; then
+    brew install python
+  else
+    echo "[install] 无法自动安装：未识别的包管理器。" >&2
+    echo "          请手动安装 Python >= 3.10 后重新运行本脚本。" >&2
+    exit 1
+  fi
+  for cand in python3 python; do
+    if py_ok "$cand"; then PY="$cand"; break; fi
+  done
+  if [ -z "$PY" ]; then
+    echo "[install] 安装后仍未找到 Python >= 3.10，请检查系统环境。" >&2
+    exit 1
+  fi
+fi
+
+echo "[install] 使用 Python：$("$PY" --version 2>&1) ($(command -v "$PY"))"
+
+# venv 模块可用性检查（部分发行版需单独装 python3-venv）。
+if ! "$PY" -m venv --help >/dev/null 2>&1; then
+  echo "[install] 当前 Python 缺少 venv 模块，尝试安装 ..."
+  if command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y python3-venv; fi
+fi
+
+# 2) 建虚拟环境并装运行依赖（与 CLI 打包一致，不含 PySide6 / 开发工具）。
+if [ ! -x "$ROOT/.venv/bin/python" ]; then
+  echo "[install] 创建虚拟环境 .venv ..."
+  "$PY" -m venv .venv
+fi
+VENV_PY="$ROOT/.venv/bin/python"
+
+echo "[install] 升级 pip 并安装运行依赖 ..."
+PIP_ARGS=()
+if [ -n "${MMC_PIP_MIRROR:-}" ]; then PIP_ARGS=(-i "$MMC_PIP_MIRROR"); fi
+"$VENV_PY" -m pip install --upgrade pip "${PIP_ARGS[@]}"
+"$VENV_PY" -m pip install "${PIP_ARGS[@]}" \
+  langchain-openai langchain-core openai \
+  lark-oapi pycryptodome python-dotenv pyyaml \
+  edge-tts httpx
+
+# 确保启动器可执行（git 拉取后可能丢失 +x 位）。
+chmod +x mmc 2>/dev/null || true
+
+echo
+echo "============================================================"
+echo "  安装完成。"
+echo "  启动方式："
+echo "    ./mmc                 # 首次进入分步引导，之后直接运行"
+echo "    ./mmc --force-setup   # 重新配置"
+echo "  日志：mimo_connect.log（与脚本同目录）"
+echo "============================================================"
+
+# 3) 可选：装完直接运行。
+if [ "${1:-}" = "--run" ]; then
+  echo "[install] 立即启动 ..."
+  exec "$VENV_PY" cli_main.py
+fi
