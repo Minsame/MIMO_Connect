@@ -23,6 +23,7 @@ class AppController:
         self._runner: EngineRunner | None = None
         self._running = False
         self._settings_win: SettingsWindow | None = None
+        self._pending_restart = False  # 设置保存后请求的引擎重启
 
         self.log_view = LogView()
         self.log_handler = QtLogHandler()
@@ -67,6 +68,10 @@ class AppController:
         self.tray.set_running(False)
         self.log_view.set_running(False)
         self.tray.notify(t("app_name"), t("notify_engine_stopped"))
+        # 设置保存触发的重启：引擎停稳后再启动一次，应用新配置。
+        if self._pending_restart:
+            self._pending_restart = False
+            self.start_engine()
 
     def _on_failed(self, msg: str) -> None:
         self._running = False
@@ -84,9 +89,26 @@ class AppController:
     def show_settings(self) -> None:
         self._settings_win = SettingsWindow()
         self._settings_win.lang_changed.connect(self._on_lang_changed)
+        self._settings_win.restart_requested.connect(self._on_settings_saved)
         self._settings_win.show()
         self._settings_win.raise_()
         self._settings_win.activateWindow()
+
+    def _on_settings_saved(self) -> None:
+        # 引擎未运行：新配置会在下次启动时自然生效，无需打扰用户。
+        if not self._running:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        ret = QMessageBox.question(
+            None,
+            t("restart_now_title"),
+            t("restart_now_body"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if ret == QMessageBox.StandardButton.Yes:
+            self._pending_restart = True
+            self.stop_engine()  # 停稳后 _on_stopped 会自动重启
 
     def _on_lang_changed(self, _lang: str) -> None:
         # 设置面板切换语言后，刷新常驻托盘菜单文案。

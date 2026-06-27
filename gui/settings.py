@@ -25,6 +25,8 @@ class SettingsWindow(QWidget):
     """非向导式的设置面板，供运行期随时调整配置。"""
 
     lang_changed = Signal(str)
+    # 保存成功后发出，请求 controller 在引擎运行时重启以应用新配置。
+    restart_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -100,6 +102,23 @@ class SettingsWindow(QWidget):
         run_form.addRow(t("field_mimo_key"), self.ed_mimo_key)
         layout.addWidget(run_box)
 
+        # ---- MiMo TTS 分组（音色 / 模型；写入 config.yaml 的 tts.mimo）----
+        tts_box = QGroupBox(t("settings_group_tts"), self)
+        tts_form = QFormLayout(tts_box)
+        self._tts_info = config_io.read_tts_mimo()
+        self.cmb_tts_voice = QComboBox()
+        # 首项为"保持当前"，避免无意覆盖；其余为 config.yaml 列出的可选音色。
+        self.cmb_tts_voice.addItem(t("tts_keep_current"), "")
+        for v in self._tts_info.get("voices", []):
+            self.cmb_tts_voice.addItem(v, v)
+        self.cmb_tts_model = QComboBox()
+        self.cmb_tts_model.addItem(t("tts_keep_current"), "")
+        for m in self._tts_info.get("models", []):
+            self.cmb_tts_model.addItem(m, m)
+        tts_form.addRow(t("field_tts_voice"), self.cmb_tts_voice)
+        tts_form.addRow(t("field_tts_model"), self.cmb_tts_model)
+        layout.addWidget(tts_box)
+
         self.lbl_hint = QLabel(t("settings_hint"), self)
         set_role(self.lbl_hint, "hint")
         layout.addWidget(self.lbl_hint)
@@ -156,6 +175,17 @@ class SettingsWindow(QWidget):
         self.ed_work_dir.setText(env.get("MIMO_CONNECT_WORK_DIR", ""))
         self.ed_mimo_model.setText(env.get("MIMO_CONNECT_MODEL", ""))
         self.ed_mimo_key.setText(env.get("MIMO_API_KEY", ""))
+        # 预选 config.yaml 中当前 TTS 音色/模型（找不到则停留在"保持当前"）。
+        cur_voice = self._tts_info.get("voice", "")
+        if cur_voice:
+            i = self.cmb_tts_voice.findData(cur_voice)
+            if i >= 0:
+                self.cmb_tts_voice.setCurrentIndex(i)
+        cur_model = self._tts_info.get("model", "")
+        if cur_model:
+            i = self.cmb_tts_model.findData(cur_model)
+            if i >= 0:
+                self.cmb_tts_model.setCurrentIndex(i)
         self._on_platform_changed(self.cmb_platform.currentText())
 
     def _save(self) -> None:
@@ -181,6 +211,11 @@ class SettingsWindow(QWidget):
         }
         config_io.write_env(values)
         config_io.sync_config_yaml(provider, self.ed_base_url.text().strip(), self.ed_model.text().strip())
+        # 写入 MiMo TTS 音色/模型（仅当用户选了具体项，"保持当前"为空不覆盖）。
+        config_io.write_tts_mimo(
+            voice=self.cmb_tts_voice.currentData() or "",
+            model=self.cmb_tts_model.currentData() or "",
+        )
         new_lang = self.cmb_lang.currentData() or current_lang()
         lang_switched = new_lang != current_lang()
         if lang_switched:
@@ -188,3 +223,5 @@ class SettingsWindow(QWidget):
             self.lang_changed.emit(new_lang)
         QMessageBox.information(self, t("saved_title"), t("saved_body"))
         self.close()
+        # 请求 controller：若引擎在运行，则询问并重启以应用新配置。
+        self.restart_requested.emit()

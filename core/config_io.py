@@ -281,3 +281,79 @@ def ensure_runtime_files() -> None:
                 shutil.copyfile(template, CONFIG_PATH)
         except Exception:
             pass
+
+
+def read_tts_mimo(path: Path | None = None) -> dict:
+    """读取 config.yaml 中 tts.mimo 的当前配置与可选项。
+
+    返回 dict：
+      voice   当前音色（缺省 ""）
+      model   当前 TTS 模型（缺省 ""）
+      api_url 当前接口地址（缺省 ""）
+      voices  可选音色列表（从 models[*].voices 汇总去重，供下拉填充）
+      models  可选模型名列表
+    缺少 pyyaml 或文件不存在时返回带空值的结构。
+    """
+    result = {"voice": "", "model": "", "api_url": "", "voices": [], "models": []}
+    if path is None:
+        path = CONFIG_PATH
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except Exception:
+        return result
+    if not path.exists():
+        return result
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception:
+        return result
+    mimo = ((data.get("tts") or {}).get("mimo") or {})
+    result["voice"] = mimo.get("voice", "") or ""
+    result["model"] = mimo.get("model", "") or ""
+    result["api_url"] = mimo.get("api_url", "") or ""
+    models = mimo.get("models") or []
+    model_names: list[str] = []
+    voices: list[str] = []
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        name = m.get("name")
+        if name and name not in model_names:
+            model_names.append(name)
+        for v in (m.get("voices") or []):
+            if v and v not in voices:
+                voices.append(v)
+    result["models"] = model_names
+    result["voices"] = voices
+    return result
+
+
+def write_tts_mimo(voice: str = "", model: str = "", api_url: str = "",
+                   path: Path | None = None) -> bool:
+    """把 MiMo TTS 的 voice / model / api_url 写回 config.yaml 的 tts.mimo。
+
+    只更新传入的非空字段，保留 models 列表等其它内容不动。
+    返回 True 表示已写入；False 表示缺少 pyyaml 或文件不存在。
+    """
+    if path is None:
+        path = CONFIG_PATH
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except Exception:
+        return False
+    if not path.exists():
+        return False
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    tts = data.setdefault("tts", {})
+    mimo = tts.setdefault("mimo", {})
+    if voice:
+        mimo["voice"] = voice
+    if model:
+        mimo["model"] = model
+    if api_url:
+        mimo["api_url"] = api_url
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
+    return True
