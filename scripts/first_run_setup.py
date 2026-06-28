@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+from scripts import _terminal
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -265,18 +266,19 @@ def ask(prompt: str, default: str = "") -> str:
 def ask_required(prompt: str, default: str = "") -> str:
     while True:
         val = ask(prompt, default)
+        if val in ("BACK", "QUIT"):
+            return val
         if val:
             return val
         print(t("required"))
 
 
 def ask_choice(prompt: str, choices: list[str], default: str) -> str:
-    opts = "/".join(choices)
-    while True:
-        val = ask(f"{prompt} ({opts})", default).lower()
-        if val in choices:
-            return val
-        print(t("choose_one", opts=opts))
+    """Use arrow-key menu when possible; fallback to typed input."""
+    idx = _terminal.menu_select(choices, prompt, default_index=choices.index(default) if default in choices else 0)
+    if idx == "BACK" or idx == "QUIT":
+        return idx
+    return choices[idx]
 
 
 
@@ -428,12 +430,15 @@ def main() -> int:
     global LANG
     force = "--force" in sys.argv
 
-    # 已保存过语言偏好则沿用，否则询问，并立即写回 .env 供 GUI/后续复用。
+    # ── Language selection (step 0) ──
     saved_lang = config_io.read_env().get("MIMO_CONNECT_LANG", "").strip().lower()
     if saved_lang in ("zh", "en"):
         LANG = saved_lang
     else:
-        LANG = choose_language()
+        choice = _terminal.menu_select(["Chinese", "English"], t("lang_prompt"), 0, allow_back=False)
+        if choice == "QUIT":
+            return 1
+        LANG = "zh" if choice == 0 else "en"
     try:
         config_io.write_lang(LANG)
     except Exception:
@@ -443,169 +448,233 @@ def main() -> int:
     print(t("title"))
     _hr()
 
-    if ENV_PATH.exists() and not force:
-        print(t("env_exists", path=ENV_PATH))
-        if ask_choice(t("reconfigure_q"), ["y", "n"], "n") != "y":
+    env_path = config_io.ENV_PATH
+    if env_path.exists() and not force:
+        print(t("env_exists", path=env_path))
+        choice = _terminal.menu_select(["y", "n"], t("reconfigure_q"), 0, allow_back=False)
+        if choice == 0:
+            pass  # reconfirm
+        elif choice == 1 or choice == "QUIT":
             print(t("kept_env"))
             return 0
-    print()
 
-    # 载入上次未完成的草稿（若有），用于断点续填。
+    # Load draft for resume
     draft = config_io.read_draft()
     if draft:
         print(t("draft_found"))
         print(t("draft_resume_hint"))
-        print()
 
     def d(key: str, fallback: str = "") -> str:
-        """取草稿值作为默认，没有则用 fallback。"""
         return draft.get(key, "") or fallback
 
     def save(key: str, val: str) -> None:
-        """把刚填的值写入本地草稿，立即持久化以支持中途退出。"""
         if val:
             draft[key] = val
             config_io.write_draft({key: val})
 
-    # ---- 1. LLM 提供商 ----
-    print(t("step1_title"))
-    provider = ask_choice(
-        t("choose_provider"), list(PROVIDER_PRESETS.keys()), d("llm_provider", "deepseek")
-    )
-    preset = PROVIDER_PRESETS[provider]
-    save("llm_provider", provider)
-    base_url = ask_required(t("api_base_url"), d("llm_base_url", preset["base_url"]))
-    save("llm_base_url", base_url)
-    model = ask_model_selection(t("model_name"), d("llm_model", preset["model"]), base_url, api_key)
-    save("llm_model", model)
-    api_key = ask_required(t("api_key"), d("llm_api_key"))
-    # 测试 LLM 连接
-    ok, err = test_llm_connection(base_url, api_key, model)
-    if ok:
-        print('  ✓ LLM 连接测试通过')
-    else:
-        print('  × 连接测试失败：%s' % err)
-        print('  提示：可继续配置，后续在设置中修改')
-    save("llm_api_key", api_key)
-    print()
+    # Wizard state machine
+    step = 0
+    state: dict[str, str] = {}
+    provider = base_url = model = api_key = ""
+    mimo_code_path = mimo_model = ""
+    platform = feishu_app_id = feishu_app_secret = ""
+    weixin_token = weixin_bot_id = ""
+    mimo_api_key_val = work_dir = agent_model = ""
 
-    # ---- 2. 检索 mimo CLI ----
-    print(t("step2_title"))
-    detected = find_mimo_cli()
-    draft_cli = d("mimo_code_path")
-    if detected:
-        print(t("cli_detected", path=detected))
-        mimo_code_path = ask(t("cli_confirm"), draft_cli or detected)
-    else:
-        print(t("cli_not_detected"))
-        print(t("cli_hint"))
-        mimo_code_path = ask(t("cli_path"), draft_cli)
-    save("mimo_code_path", mimo_code_path)
+    while step >= 0:
+        # ── Step 1: LLM Provider ──
+        if step == 1:
+            print()
+            print(t("step1_title"))
+            providers = list(PROVIDER_PRESETS.keys())
+            sel = _terminal.menu_select(providers, t("choose_provider"), providers.index(d("llm_provider", "deepseek")))
+            if sel == "QUIT": return 1
+            if sel == "BACK": step = 0; continue
+            provider = providers[sel]
+            preset = PROVIDER_PRESETS[provider]
+            save("llm_provider", provider)
 
-    # ---- 2b. 检测 MiMo CLI 模型 ----
-    mimo_model = ""
-    if mimo_code_path:
-        try:
-            import subprocess
-            result = subprocess.run([mimo_code_path, "--model"], capture_output=True, text=True, timeout=10)
-            raw = result.stdout.strip() or result.stderr.strip()
-            if raw and "error" not in raw.lower() and "not found" not in raw.lower():
-                mimo_model = raw
-        except Exception:
-            pass
-    if mimo_model:
-        print('  检测到 MiMo CLI 配置了模型：%s' % mimo_model)
-        if ask_choice('  在 MIMO_Connect 中也使用此模型？', ['y', 'n'], 'y') == 'y':
-            print('  ✓ 已设为 MIMO_CONNECT_MODEL=%s' % mimo_model)
-            draft['agent_model'] = mimo_model
-            save('agent_model', mimo_model)
-        else:
-            print('  已跳过，稍后可在设置中修改')
-    else:
-        print('  未检测到 MiMo CLI 当前模型（可能未配置）')
-    print()
+            base_url = ask_required(t("api_base_url"), d("llm_base_url", preset["base_url"]))
+            if base_url == "QUIT": return 1
+            if base_url == "BACK": continue
+            save("llm_base_url", base_url)
 
-    # ---- 3. 运行平台 ----
-    print(t("step3_title"))
-    print(t("platform_feishu"))
-    print(t("platform_weixin"))
-    platform = ask_choice(t("choose_channel"), ["feishu", "weixin"], d("platform", "feishu"))
-    save("platform", platform)
-    weixin_token = weixin_bot_id = feishu_app_id = feishu_app_secret = ""
-    if platform == "feishu":
-        feishu_app_id = ask_required(t("feishu_app_id"), d("feishu_app_id"))
-        save("feishu_app_id", feishu_app_id)
-        feishu_app_secret = ask_required(t("feishu_app_secret"), d("feishu_app_secret"))
-        save("feishu_app_secret", feishu_app_secret)
-    else:
-        print(t("weixin_intro"))
-        if ask_choice(t("weixin_start_q"), ["y", "n"], "y") == "y":
-            result = weixin_qr_login()
-            if result:
-                weixin_token, weixin_bot_id = result
-                save("weixin_bot_id", weixin_bot_id)
-                save("weixin_token", weixin_token)
-                print(t("weixin_ok", bot_id=weixin_bot_id))
+            api_key = ask_required(t("api_key"), d("llm_api_key"))
+            if api_key == "QUIT": return 1
+            if api_key == "BACK": continue
+            save("llm_api_key", api_key)
+
+            # Model selection with listing + test
+            model = ask_model_selection(t("model_name"), d("llm_model", preset["model"]), base_url, api_key)
+            if model == "QUIT": return 1
+            if model == "BACK": continue
+            save("llm_model", model)
+
+            # Connection test
+            ok, err = test_llm_connection(base_url, api_key, model)
+            if ok:
+                print(t("llm_test_ok"))
             else:
-                print(t("weixin_incomplete"))
-        else:
-            print(t("weixin_skipped"))
-    print()
+                print(t("llm_test_fail", msg=err))
+                print(t("llm_test_hint"))
+            step = 2; continue
 
-    # ---- 4. MiMo TTS ----
-    print(t("step4_title"))
-    mimo_api_key = ask(t("mimo_api_key"), d("mimo_api_key"))
-    save("mimo_api_key", mimo_api_key)
-    print()
+        # ── Step 2: MiMo CLI detection ──
+        if step == 2:
+            print()
+            print(t("step2_title"))
+            detected = find_mimo_cli()
+            draft_cli = d("mimo_code_path")
+            if detected:
+                print(t("cli_detected", path=detected))
+                mimo_code_path = ask(t("cli_confirm"), draft_cli or detected)
+            else:
+                print(t("cli_not_detected"))
+                print(t("cli_hint"))
+                mimo_code_path = ask(t("cli_path"), draft_cli)
+            if mimo_code_path == "QUIT": return 1
+            if mimo_code_path == "BACK": step = 1; continue
+            save("mimo_code_path", mimo_code_path)
 
-    # ---- 5. 工作目录 ----
-    print(t("step5_title"))
-    default_work_dir = os.getenv("MIMO_CONNECT_WORK_DIR", str(PROJECT_ROOT))
-    work_dir = ask_required(t("work_dir"), d("work_dir", default_work_dir))
-    save("work_dir", work_dir)
-    agent_model = ask(t("agent_model"), d("agent_model"))
-    save("agent_model", agent_model)
-    print()
+            # ── Step 2b: MiMo model detection ──
+            print()
+            if mimo_code_path:
+                try:
+                    import subprocess
+                    result = subprocess.run([mimo_code_path, "--model"], capture_output=True, text=True, timeout=10)
+                    raw = result.stdout.strip() or result.stderr.strip()
+                    if raw and "error" not in raw.lower() and "not found" not in raw.lower():
+                        mimo_model = raw
+                except Exception:
+                    pass
+            if mimo_model:
+                print(t("mimo_model_detected", model=mimo_model))
+                sel = _terminal.menu_select(["y", "n"], t("reuse_mimo_model"), 0)
+                if sel == "QUIT": return 1
+                if sel == 0:
+                    print(t("mimo_model_reused", model=mimo_model))
+                    agent_model = mimo_model
+                    save("agent_model", mimo_model)
+                else:
+                    print(t("mimo_model_declined"))
+            else:
+                print(t("mimo_model_not_detected"))
+            step = 3; continue
 
-    env_values = {
-        preset["env_key"]: api_key,
-        "MIMO_API_KEY": mimo_api_key,
-        "MIMO_CONNECT_PLATFORM": platform,
-        "WEIXIN_BOT_ID": weixin_bot_id,
-        "WEIXIN_TOKEN": weixin_token,
-        "FEISHU_APP_ID": feishu_app_id,
-        "FEISHU_APP_SECRET": feishu_app_secret,
-        "MIMO_CODE_PATH": mimo_code_path,
-        "MIMO_CONNECT_WORK_DIR": work_dir,
-        "MIMO_CONNECT_MODEL": agent_model,
-        "MIMO_CONNECT_LANG": LANG,
-    }
+        # ── Step 3: Platform ──
+        if step == 3:
+            print()
+            print(t("step3_title"))
+            print(t("platform_feishu"))
+            print(t("platform_weixin"))
+            sel = _terminal.menu_select(["feishu", "weixin"], t("choose_channel"), 0 if d("platform", "feishu") == "feishu" else 1)
+            if sel == "QUIT": return 1
+            if sel == "BACK": step = 2; continue
+            platform = ["feishu", "weixin"][sel]
+            save("platform", platform)
 
-    _hr()
-    print(t("about_to_write"))
-    for k, v in env_values.items():
-        if not v:
+            weixin_token = weixin_bot_id = feishu_app_id = feishu_app_secret = ""
+            if platform == "feishu":
+                feishu_app_id = ask_required(t("feishu_app_id"), d("feishu_app_id"))
+                if feishu_app_id == "QUIT": return 1
+                if feishu_app_id == "BACK": continue
+                save("feishu_app_id", feishu_app_id)
+                feishu_app_secret = ask_required(t("feishu_app_secret"), d("feishu_app_secret"))
+                if feishu_app_secret == "QUIT": return 1
+                if feishu_app_secret == "BACK": continue
+                save("feishu_app_secret", feishu_app_secret)
+            else:
+                print(t("weixin_intro"))
+                sel = _terminal.menu_select(["y", "n"], t("weixin_start_q"), 0)
+                if sel == "QUIT": return 1
+                if sel == 0:
+                    result = weixin_qr_login()
+                    if result:
+                        weixin_token, weixin_bot_id = result
+                        save("weixin_bot_id", weixin_bot_id)
+                        save("weixin_token", weixin_token)
+                        print(t("weixin_ok", bot_id=weixin_bot_id))
+                    else:
+                        print(t("weixin_incomplete"))
+                else:
+                    print(t("weixin_skipped"))
+            step = 4; continue
+
+        # ── Step 4: MiMo TTS ──
+        if step == 4:
+            print()
+            print(t("step4_title"))
+            mimo_api_key_val = ask(t("mimo_api_key"), d("mimo_api_key"))
+            if mimo_api_key_val == "QUIT": return 1
+            if mimo_api_key_val == "BACK": step = 3; continue
+            save("mimo_api_key", mimo_api_key_val)
+            step = 5; continue
+
+        # ── Step 5: Work dir & agent model ──
+        if step == 5:
+            print()
+            print(t("step5_title"))
+            default_work_dir = os.getenv("MIMO_CONNECT_WORK_DIR", str(config_io.PROJECT_ROOT))
+            work_dir = ask_required(t("work_dir"), d("work_dir", default_work_dir))
+            if work_dir == "QUIT": return 1
+            if work_dir == "BACK": step = 4; continue
+            save("work_dir", work_dir)
+
+            if not agent_model:
+                agent_model = ask(t("agent_model"), d("agent_model"))
+                if agent_model == "QUIT": return 1
+                if agent_model == "BACK": continue
+                save("agent_model", agent_model)
+
+            # ── Review & confirm ──
+            env_values = {
+                preset["env_key"]: api_key,
+                "MIMO_API_KEY": mimo_api_key_val,
+                "MIMO_CONNECT_PLATFORM": platform,
+                "WEIXIN_BOT_ID": weixin_bot_id,
+                "WEIXIN_TOKEN": weixin_token,
+                "FEISHU_APP_ID": feishu_app_id,
+                "FEISHU_APP_SECRET": feishu_app_secret,
+                "MIMO_CODE_PATH": mimo_code_path,
+                "MIMO_CONNECT_WORK_DIR": work_dir,
+                "MIMO_CONNECT_MODEL": agent_model,
+                "MIMO_CONNECT_LANG": LANG,
+            }
+
+            _hr()
+            print(t("about_to_write"))
+            for k, v in env_values.items():
+                if not v:
+                    continue
+                shown = v if k not in (preset["env_key"], "MIMO_API_KEY", "FEISHU_APP_SECRET", "WEIXIN_TOKEN") else (v[:6] + "***")
+                print(f"    {k} = {shown}")
+            _hr()
+
+            sel = _terminal.menu_select(["y", "n"], t("confirm_write"), 0)
+            if sel == "QUIT": return 1
+            if sel == 1:
+                print(t("write_cancelled"))
+                # Go back to step 1
+                step = 1
+                continue
+
+            write_env(env_values)
+            print(t("env_written", path=env_path))
+            sync_config_yaml(provider, base_url, model)
+            config_io.clear_draft()
+
+            print()
+            print(t("setup_done"))
+            print()
+            step = 6; continue
+
+        if step == 0:
+            step = 1  # start
             continue
-        shown = v if k not in (preset["env_key"], "MIMO_API_KEY", "FEISHU_APP_SECRET", "WEIXIN_TOKEN") else (v[:6] + "***")
-        print(f"    {k} = {shown}")
-    _hr()
-    if ask_choice(t("confirm_write"), ["y", "n"], "y") != "y":
-        print(t("write_cancelled"))
-        return 1
 
-    write_env(env_values)
-    print(t("env_written", path=ENV_PATH))
-    sync_config_yaml(provider, base_url, model)
-    # 配置成功落盘后清除草稿。
-    config_io.clear_draft()
+        break  # done
 
-    print()
-    print(t("done"))
-    print("    mmc            (Windows GUI)  |  ./mmc  (Linux/macOS CLI)")
-    print("    python gui_main.py   or   python cli_main.py")
     return 0
-
-
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
