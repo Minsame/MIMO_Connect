@@ -1,4 +1,4 @@
-"""共享配置读写层（无交互、无打印）。
+﻿"""共享配置读写层（无交互、无打印）。
 
 CLI 首启向导（scripts/first_run_setup.py）与 Windows GUI 向导共用这一层，
 确保 .env / config.yaml 的写入逻辑只有一份，不会漂移。
@@ -66,7 +66,7 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
     "deepseek": {
         "env_key": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
     },
     "openai": {
         "env_key": "OPENAI_API_KEY",
@@ -87,6 +87,11 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
         "env_key": "DASHSCOPE_API_KEY",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "model": "deepseek-ai/DeepSeek-V4-Flash",
+    },
+    "mimo": {
+        "env_key": "MIMO_API_KEY",
+        "base_url": "https://api.xiaomimimo.com/v1",
+        "model": "mimo-v2.5-pro",
     },
 }
 

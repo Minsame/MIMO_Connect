@@ -1,4 +1,4 @@
-"""MIMO_Connect 首次启动部署向导。
+﻿"""MIMO_Connect 首次启动部署向导。
 
 交互式收集首次运行所需的全部信息，并写入 .env，同时把 LLM 的
 base_url / model 同步到 config.yaml 的 active_provider 配置：
@@ -88,10 +88,34 @@ MESSAGES: dict[str, dict[str, str]] = {
         "draft_found": "  检测到上次未完成的配置草稿，已为你预填先前填写的内容。",
         "draft_resume_hint": "    直接回车采用草稿值，或重新输入覆盖。中途退出会自动保存进度。",
         "draft_saved": "\n  已保存当前进度，下次启动可继续填写。",
+    # LLM connection test & model selection
+    "models_fetched": "  \u2713 Fetched {count} available models:",
+    "model_number": "  Enter number or type model name directly",
+    "llm_test_ok": "  \u2713 LLM connection test passed",
+    "llm_test_fail": "  \u00d7 Connection test failed: {msg}",
+    "llm_test_hint": "  Hint: you can continue and modify in settings later",
+    "mimo_model_detected": "  Detected your MiMo CLI model: {model}",
+    "reuse_mimo_model": "  Use this model in MIMO_Connect too?",
+    "mimo_model_reused": "  \u2713 Set MIMO_CONNECT_MODEL={model}",
+    "mimo_model_declined": "  Skipped, can be modified in settings later",
+    "mimo_model_not_detected": "  Could not detect MiMo CLI model",
+
     },
     "en": {
         "title": "  MIMO_Connect First-Run Setup Wizard",
         "required": "  ! This field is required.",
+    # LLM \u8fde\u63a5\u6d4b\u8bd5 & \u6a21\u578b\u9009\u62e9
+    "models_fetched": "  \u2713 \u5df2\u83b7\u53d6 {count} \u4e2a\u53ef\u7528\u6a21\u578b\uff1a",
+    "model_number": "  \u8bf7\u8f93\u5165\u7f16\u53f7\u6216\u76f4\u63a5\u8f93\u5165\u6a21\u578b\u540d",
+    "llm_test_ok": "  \u2713 LLM \u8fde\u63a5\u6d4b\u8bd5\u901a\u8fc7",
+    "llm_test_fail": "  \u00d7 \u8fde\u63a5\u6d4b\u8bd5\u5931\u8d25\uff1a{msg}",
+    "llm_test_hint": "  \u63d0\u793a\uff1a\u53ef\u7ee7\u7eed\u914d\u7f6e\uff0c\u540e\u7eed\u5728\u8bbe\u7f6e\u4e2d\u4fee\u6539",
+    "mimo_model_detected": "  \u68c0\u6d4b\u5230\u4f60\u7684 MiMo CLI \u914d\u7f6e\u4e86\u6a21\u578b\uff1a{model}",
+    "reuse_mimo_model": "  \u5728 MIMO_Connect \u4e2d\u4e5f\u4f7f\u7528\u6b64\u6a21\u578b\uff1f",
+    "mimo_model_reused": "  \u2713 \u5df2\u8bbe\u4e3a MIMO_CONNECT_MODEL={model}",
+    "mimo_model_declined": "  \u5df2\u8df3\u8fc7\uff0c\u7a0d\u540e\u53ef\u5728\u8bbe\u7f6e\u4e2d\u4fee\u6539",
+    "mimo_model_not_detected": "  \u672a\u68c0\u6d4b\u5230 MiMo CLI \u5f53\u524d\u6a21\u578b",
+
         "choose_one": "  ! Please enter one of {opts}.",
         "env_exists": ".env already exists: {path}",
         "reconfigure_q": "Reconfigure?",
@@ -255,6 +279,54 @@ def ask_choice(prompt: str, choices: list[str], default: str) -> str:
         print(t("choose_one", opts=opts))
 
 
+
+def test_llm_connection(base_url: str, api_key: str, model: str) -> tuple[bool, str]:
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=base_url.rstrip('/'), api_key=api_key, timeout=15)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{'role': 'user', 'content': 'test'}],
+            max_tokens=5
+        )
+        return True, ''
+    except Exception as e:
+        return False, str(e)
+
+
+def fetch_available_models(base_url: str, api_key: str) -> list[str]:
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=base_url.rstrip('/'), api_key=api_key, timeout=15)
+        models = client.models.list()
+        return sorted([m.id for m in models])
+    except Exception:
+        return []
+
+
+def ask_model_selection(prompt: str, default: str, base_url: str, api_key: str) -> str:
+    models = fetch_available_models(base_url, api_key)
+    if models:
+        print('  ✓ 已获取 %d 个可用模型：' % len(models))
+        display = models[:50]
+        for i, m in enumerate(display, 1):
+            print('    %3d. %s' % (i, m))
+        if len(models) > 50:
+            print('    ... 还有 %d 个（直接输入模型名也可）' % (len(models)-50))
+        while True:
+            idx = ask('  请输入编号或模型名', default)
+            if idx.isdigit() and 1 <= int(idx) <= len(display):
+                return display[int(idx)-1]
+            if idx in models or idx:
+                return idx
+            print('  请选择 1-%d' % len(display))
+    # fallback to manual input
+    while True:
+        val = ask(prompt, default)
+        if val:
+            return val
+        print('  请输入模型名称')
+
 def find_mimo_cli() -> str | None:
     """检索本机 mimo CLI 可执行文件位置。"""
     path = shutil.which("mimo")
@@ -404,9 +476,16 @@ def main() -> int:
     save("llm_provider", provider)
     base_url = ask_required(t("api_base_url"), d("llm_base_url", preset["base_url"]))
     save("llm_base_url", base_url)
-    model = ask_required(t("model_name"), d("llm_model", preset["model"]))
+    model = ask_model_selection(t("model_name"), d("llm_model", preset["model"]), base_url, api_key)
     save("llm_model", model)
     api_key = ask_required(t("api_key"), d("llm_api_key"))
+    # 测试 LLM 连接
+    ok, err = test_llm_connection(base_url, api_key, model)
+    if ok:
+        print('  ✓ LLM 连接测试通过')
+    else:
+        print('  × 连接测试失败：%s' % err)
+        print('  提示：可继续配置，后续在设置中修改')
     save("llm_api_key", api_key)
     print()
 
@@ -422,6 +501,28 @@ def main() -> int:
         print(t("cli_hint"))
         mimo_code_path = ask(t("cli_path"), draft_cli)
     save("mimo_code_path", mimo_code_path)
+
+    # ---- 2b. 检测 MiMo CLI 模型 ----
+    mimo_model = ""
+    if mimo_code_path:
+        try:
+            import subprocess
+            result = subprocess.run([mimo_code_path, "--model"], capture_output=True, text=True, timeout=10)
+            raw = result.stdout.strip() or result.stderr.strip()
+            if raw and "error" not in raw.lower() and "not found" not in raw.lower():
+                mimo_model = raw
+        except Exception:
+            pass
+    if mimo_model:
+        print('  检测到 MiMo CLI 配置了模型：%s' % mimo_model)
+        if ask_choice('  在 MIMO_Connect 中也使用此模型？', ['y', 'n'], 'y') == 'y':
+            print('  ✓ 已设为 MIMO_CONNECT_MODEL=%s' % mimo_model)
+            draft['agent_model'] = mimo_model
+            save('agent_model', mimo_model)
+        else:
+            print('  已跳过，稍后可在设置中修改')
+    else:
+        print('  未检测到 MiMo CLI 当前模型（可能未配置）')
     print()
 
     # ---- 3. 运行平台 ----
