@@ -4,7 +4,7 @@
 
 ## 核心功能
 
-- **多平台接入**：飞书（WebSocket 长连接）、微信（iLink Bot）。
+- **多平台接入**：飞书（WebSocket 长连接）、微信（iLink Bot）。建议使用飞书，支持更全面，语音效果也更好，测试也更完善
 - **意图路由**：基于 LLM 的意图分类（默认 DeepSeek，支持 OpenAI / Anthropic / SiliconFlow / DashScope），区分编程任务、闲聊、确认、中断等。
 - **MiMo Code 桥接**：解析 `mimo run --format json` 的流式输出，处理会话恢复、权限请求、选项选择、自动重启。
 - **展示模式**：`/show` 细节模式（聚合推送）与 `/hide` 精简模式（只发开头与结尾），运行中可切换。
@@ -156,15 +156,9 @@ MIMO_Connect/
 
 ## 配置说明
 
-- **`.env`**：所有密钥与平台凭证（API Key、飞书 APP_ID/SECRET、微信 TOKEN/BOT_ID、mimo 路径、工作目录）。绝不提交到仓库。
+- **`.env`**：所有密钥与平台凭证（API Key、飞书 APP_ID/SECRET、微信 TOKEN/BOT_ID、mimo 路径、工作目录）。
 - **`config.yaml`**：LLM 提供商与模型、TTS 引擎与降级顺序、CLI 选择、日志等非敏感配置。
 
 ## 中间层命令
 
 在聊天窗口直接发送：`/show` 细节模式、`/hide` 精简模式、`/model` 查看当前模型、`/model <名称>` 切换模型、`/models` 列出可用模型、`/abort`（或 `/stop`）中断当前任务、`/connect` 查看接入提示、`/help` 帮助。
-
-## 测试
-
-```bash
-python -m pytest tests/ -q
-```

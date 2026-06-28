@@ -21,7 +21,9 @@ dependencies = [
 [project.optional-dependencies]
 feishu = ["lark-oapi>=1.0"]
 weixin = ["pycryptodome>=3.10"]
-voice = ["edge-tts>=6.1", "pywin32>=306; sys_platform == 'win32'"]
+voice = ["openai>=1.0", "edge-tts>=6.1", "pywin32>=306; sys_platform == 'win32'"]
+gui = ["PySide6>=6.5"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "mypy>=1.0", "black>=23.0", "ruff>=0.0.280"]
 
 [project.scripts]
 mmc = "cli_main:main"

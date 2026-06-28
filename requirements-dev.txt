@@ -1,0 +1,14 @@
+# MIMO_Connect 开发/测试工具
+# 普通运行用户不需要安装这个文件
+# pip install -r requirements-dev.txt
+
+# === 测试 ===
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# === 类型检查 ===
+mypy>=1.0.0
+
+# === 格式化与 Lint ===
+black>=23.0.0
+ruff>=0.0.280

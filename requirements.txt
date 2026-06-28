@@ -1,43 +1,32 @@
-# MIMO_Connect 依赖
+# MIMO_Connect 运行依赖
+# pip install -r requirements.txt
+# 开发/测试工具在 requirements-dev.txt（普通用户不需要）
 
-# LLM 依赖
+# === LLM 依赖（中间层意图路由、段改写、进度摘要、语音浓缩）===
 langchain-openai>=0.0.8
 langchain-core>=0.1.0
 
-# HTTP 客户端（微信平台、TTS、向导联通性检测直接使用）
+# === HTTP 客户端 ==="
 httpx>=0.24.0
 
-# MiMo TTS 依赖
-openai>=1.0.0          # MiMo TTS API (OpenAI 兼容协议)
-
-# 飞书/Lark Bot
-lark-oapi>=1.4.0
-
-# 微信 iLink Bot 消息解密 (提供 Crypto 模块)
-pycryptodome>=3.19.0
-
-# 配置管理
+# === 配置管理 ===
 python-dotenv>=1.0.0
 pyyaml>=6.0
 
-# Windows TTS 依赖 (选择其一)
-pywin32>=306           # 方案1: win32com (推荐)
-# pyttsx3>=2.90        # 方案2: pyttsx3
-# comtypes>=1.4.1      # 方案3: comtypes
+# === MiMo TTS API (OpenAI 兼容协议) ===
+openai>=1.0.0
 
-# Edge TTS (在线降级)
+# === Edge TTS（降级引擎）===
 edge-tts>=6.1.9
 
-# GUI 版（Windows 桌面）依赖；CLI 版不需要
+# === 飞书机器人（选装：不用飞书可不装）===
+lark-oapi>=1.4.0
+
+# === 微信消息解密（选装：不用微信可不装）===
+pycryptodome>=3.19.0
+
+# === Windows TTS（选装：仅 Windows 且要 Windows TTS 才需要）===
+pywin32>=306
+
+# === GUI 桌面应用（仅 Windows 源码运行需要；Linux CLI 无需安装）===
 PySide6>=6.5.0
-
-# 类型检查
-mypy>=1.0.0
-
-# 测试依赖
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-
-# 开发依赖
-black>=23.0.0
-ruff>=0.0.280
