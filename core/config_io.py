@@ -173,6 +173,16 @@ def find_mimo_cli() -> Optional[str]:
     return None
 
 
+
+def _is_placeholder(val: str) -> bool:
+    """判断值是否为 .env.example 占位符（sk-your-xxx / your-xxx）。"""
+    if "your-" in val.lower():
+        return True
+    if val.startswith("/path/to/") or val.startswith("sk-your-"):
+        return True
+    return False
+
+
 def is_configured(path: Path = ENV_PATH) -> bool:
     """判断是否已完成首次配置：.env 存在、有可用 LLM key、且所选平台凭证齐全。"""
     env = read_env(path)
@@ -181,11 +191,14 @@ def is_configured(path: Path = ENV_PATH) -> bool:
     has_llm_key = any(env.get(p["env_key"]) for p in PROVIDER_PRESETS.values())
     if not has_llm_key:
         return False
+    # 排除 .env.example 占位符（非空但无实际作用）。
+    if any(_is_placeholder(env.get(p["env_key"], "")) for p in PROVIDER_PRESETS.values()):
+        return False
     platform = env.get("MIMO_CONNECT_PLATFORM", "").lower()
     if platform in ("feishu", "lark"):
-        return bool(env.get("FEISHU_APP_ID") and env.get("FEISHU_APP_SECRET"))
+        return not _is_placeholder(env.get("FEISHU_APP_ID", "")) and not _is_placeholder(env.get("FEISHU_APP_SECRET", ""))
     if platform == "weixin":
-        return bool(env.get("WEIXIN_BOT_ID") and env.get("WEIXIN_TOKEN"))
+        return not _is_placeholder(env.get("WEIXIN_BOT_ID", "")) and not _is_placeholder(env.get("WEIXIN_TOKEN", ""))
     return True
 
 
