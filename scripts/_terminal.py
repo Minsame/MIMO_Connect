@@ -59,7 +59,7 @@ def menu_select(options: list[str], prompt: str = "",
             prefix = " \u25b6 " if i == idx else "   "
             sys.stdout.write(f"{prefix}{opt}\n")
         if allow_back:
-            sys.stdout.write("\n  [\u2191\u2193\u2192  Enter  B \u4e0a\u4e00\u6b65  Q \u9000\u51fa]\n")
+            sys.stdout.write("\n  [\u2191\u2193\u2192  Enter  ESC \u4e0a\u4e00\u6b65  Q \u9000\u51fa]\n")
         sys.stdout.flush()
 
         # Read key
@@ -71,9 +71,9 @@ def menu_select(options: list[str], prompt: str = "",
         elif key in ("ENTER", "\r", "\n"):
             _clear_lines(n + extra)
             return idx
-        elif key in ("b", "B"):
+        elif key in ("b", "B", "ESC", "\x1b"):
             _clear_lines(n + extra)
             return "BACK"
-        elif key in ("q", "Q", "ESC"):
+        elif key in ("q", "Q", "\x03"):
             _clear_lines(n + extra)
             return "QUIT"
