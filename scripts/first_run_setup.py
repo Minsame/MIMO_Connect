@@ -257,9 +257,33 @@ def _hr() -> None:
 
 
 def ask(prompt: str, default: str = "") -> str:
-    """提示输入；回车采用默认值。"""
+    """逐字符输入；Enter 确认，ESC 返回上一步，Ctrl+C 退出。"""
     suffix = f" [{default}]" if default else ""
-    val = input(f"{prompt}{suffix}: ").strip()
+    sys.stdout.write(f"{prompt}{suffix}: ")
+    sys.stdout.flush()
+    chars: list[str] = []
+    while True:
+        key = _terminal._getch()
+        if key in ("ENTER", "\r", "\n"):
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            break
+        if key in ("ESC", "\x1b"):
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            return "BACK"
+        if key == "\x03":
+            raise KeyboardInterrupt()
+        if key in ("\x7f", "\b"):
+            if chars:
+                chars.pop()
+                sys.stdout.write("\b \b")
+            sys.stdout.flush()
+        elif len(key) == 1 and key.isprintable():
+            chars.append(key)
+            sys.stdout.write(key)
+            sys.stdout.flush()
+    val = "".join(chars).strip()
     return val or default
 
 

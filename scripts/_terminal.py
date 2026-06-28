@@ -12,6 +12,8 @@ def _getch() -> str:
         if ch == b"\xe0":
             ch2 = msvcrt.getch()
             return {"H": "UP", "P": "DOWN"}.get(ch2.decode(), "")
+        if ch == b"\x1b":
+            return "ESC"
         return ch.decode("utf-8", errors="replace")
     except ImportError:
         import tty, termios
@@ -41,7 +43,7 @@ def menu_select(options: list[str], prompt: str = "",
     """Arrow-key selectable menu. Returns index or BACK/QUIT."""
     n = len(options)
     idx = default_index if 0 <= default_index < n else 0
-    extra = 1 + (1 if allow_back else 0)
+    extra = (1 if prompt else 0) + (2 if allow_back else 0)
     first = True
 
     while True:
