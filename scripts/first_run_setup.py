@@ -420,6 +420,7 @@ def weixin_qr_login() -> tuple[str, str] | None:
     try:
         return asyncio.run(_run())
     except KeyboardInterrupt:
+        _restore_term()
         print(t("weixin_cancelled"))
         return None
     except Exception as e:
@@ -470,6 +471,17 @@ def sync_config_yaml(provider: str, base_url: str, model: str) -> None:
     print(t("yaml_synced", provider=provider, model=model))
 
 
+def _restore_term() -> None:
+    """Restore terminal ECHO+ICANON if turned off by raw mode."""
+    try:
+        import termios
+        old = termios.tcgetattr(sys.stdin.fileno())
+        old[3] |= termios.ECHO | termios.ICANON
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
+    except Exception:
+        pass
+
+
 def main() -> int:
     global LANG
     force = "--force" in sys.argv
@@ -500,6 +512,7 @@ def main() -> int:
             pass  # reconfirm
         elif choice == 1 or choice == "QUIT":
             print(t("kept_env"))
+            _restore_term()
             return 0
 
     # Load draft for resume
