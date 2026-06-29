@@ -151,22 +151,6 @@ def _curl_post(url: str, body: str, headers: dict[str, str], timeout: float) -> 
         raise RuntimeError(f"curl timed out after {timeout}s")
 
 
-def _curl_put(url: str, data: bytes, timeout: float = 60) -> bool:
-    import subprocess
-    import tempfile
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
-        f.write(data)
-        tmp_path = f.name
-    try:
-        cmd = [_curl_bin(), "-s", "-X", "PUT", url, "--max-time", str(int(timeout)),
-               "-H", "Content-Type: application/octet-stream",
-               "--data-binary", f"@{tmp_path}"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=int(timeout) + 5)
-        return result.returncode == 0
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-
 # ─── QR Login ────────────────────────────────────────────────────────────────
 
 async def qr_login(client: httpx.AsyncClient, timeout: float = 120.0) -> Optional[dict[str, str]]:
@@ -342,7 +326,7 @@ class WeixinPlatform(Platform):
         token = context_token or self._context_tokens.get(to_user, "")
 
         if reply.voice_path:
-            if await self.send_local_file(to_user, reply.voice_path, token):
+            if await self._send_file(to_user, reply.voice_path, token):
                 # Options reply also needs the text so the user can read the
                 # choices; plain voice replies are fine as audio only.
                 if reply.metadata.get("options"):
@@ -417,79 +401,47 @@ class WeixinPlatform(Platform):
         return data
 
     async def send_local_file(self, to_user: str, file_path: str, context_token: str = "") -> bool:
-        import uuid
+        """Send a file via WeChat using cc-connect format (AES-encrypted CDN upload)."""
         path = Path(file_path)
         if not path.exists():
             return False
 
-        token = context_token or self._context_tokens.get(to_user, "")
+        if not context_token:
+            context_token = self._context_tokens.get(to_user, "")
+        if not context_token:
+            logger.warning("No context_token for file send, falling back to text")
+            return False
+
         file_data = path.read_bytes()
-        file_key = str(uuid.uuid4())
-
-        # Step 1: Get upload URL (Hermes style)
-        try:
-            upload_payload = {
-                "to_user_id": to_user,
-                "media_type": UPLOAD_MEDIA_FILE,
-                "file_key": file_key,
-                "file_name": path.name,
-                "file_size": len(file_data),
-                "raw_size": len(file_data),
-                "raw_file_md5": hashlib.md5(file_data).hexdigest(),
-                "aes_key": "",
-            }
-            if token:
-
-               upload_payload["context_token"] = token
-            logger.info(f"GetUploadUrl request: {upload_payload}")
-            data = await self._api_call(EP_GET_UPLOAD_URL, upload_payload)
-            logger.info(f"GetUploadUrl response: {data}")
-            err_code = data.get("ret", 0) or data.get("errcode", 0)
-            if err_code != 0:
-                logger.warning(f"GetUploadUrl failed (err={err_code}); will fallback to text. ret={data.get('ret')} errcode={data.get('errcode')} errmsg={data.get('errmsg', data.get('err_msg', ''))} detail={json.dumps(data, ensure_ascii=False)[:500]}")
-                return False
-            upload_url = data.get("upload_url") or data.get("upload_full_url")
-            if not upload_url:
-                logger.error("No upload URL")
-                return False
-        except Exception as e:
-            logger.error(f"Upload URL error: {e}")
+        ref = await self._upload_media(to_user, file_data, context_token)
+        if not ref:
             return False
+        encrypted_param, aes_key = ref
 
-        # Step 2: Upload raw file via curl PUT (Hermes style)
-        try:
-            ok = await asyncio.wait_for(
-                asyncio.to_thread(_curl_put, upload_url, file_data),
-                timeout=65,
-            )
-            if not ok:
-                logger.warning("CDN upload failed")
-                return False
-        except Exception as e:
-            logger.error(f"CDN upload error: {e}")
-            return False
-
-        # Step 3: Send file message (Hermes style)
         message = {
             "from_user_id": "",
             "to_user_id": to_user,
-            "client_id": str(uuid.uuid4()),
+            "client_id": "mmc-" + secrets.token_hex(8),
             "message_type": MSG_TYPE_BOT,
             "message_state": MSG_STATE_FINISH,
+            "context_token": context_token,
             "item_list": [{
                 "type": ITEM_FILE,
                 "file_item": {
-                    "file_key": file_key,
+                    "media": {
+                        "encrypt_query_param": encrypted_param,
+                        "aes_key": _format_aes_key_for_api(aes_key),
+                        "encrypt_type": 1,
+                    },
                     "file_name": path.name,
-                    "file_size": len(file_data),
+                    "len": str(len(file_data)),
                 },
             }],
         }
-        if token:
-            message["context_token"] = token
 
         try:
             data = await self._api_call(EP_SEND_MESSAGE, {"msg": message})
+            # Empty {} response is normal success for media messages
             if data.get("errcode", 0) == 0:
                 if data.get("context_token"):
                     self._context_tokens[to_user] = data["context_token"]
@@ -500,7 +452,8 @@ class WeixinPlatform(Platform):
             logger.error(f"Send file error: {e}")
         return False
 
-    async def _upload_media(self, to_user: str, file_data: bytes):
+    async def _upload_media(self, to_user: str, file_data: bytes, context_token: str = ""):
+        """Upload file to WeChat CDN with AES encryption. Returns (encrypted_param, aes_key) or None."""
         aes_key = os.urandom(16)
         file_key = secrets.token_hex(16)
         encrypted_size = _aes_padded_size(len(file_data))
@@ -514,6 +467,8 @@ class WeixinPlatform(Platform):
             "no_need_thumb": True,
             "aeskey": aes_key.hex(),
         }
+        if context_token:
+            upload_payload["context_token"] = context_token
         data = await _api_post(self._require_client(), EP_GET_UPLOAD_URL, upload_payload, self._token)
         upload_url = data.get("upload_full_url") or data.get("upload_url")
         if not upload_url and data.get("upload_param"):
@@ -530,69 +485,58 @@ class WeixinPlatform(Platform):
         if not encrypted_param:
             logger.warning("CDN upload response missing x-encrypted-param")
             return None
-        return encrypted_param, aes_key, encrypted_size, len(file_data)
-
-    async def _to_amr(self, path) -> bytes:
-        if path.suffix.lower() == ".amr":
-            return path.read_bytes()
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-i", str(path),
-            "-c:a", "amr_nb",
-            "-ar", "8000",
-            "-ac", "1",
-            "-b:a", "12.2k",
-            "-f", "amr",
-            "-y", "pipe:1",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffmpeg AMR convert failed: {stderr.decode(errors='replace')[:300]}")
-        return stdout
+        return encrypted_param, aes_key
 
     async def _send_file(self, to_user: str, file_path: str, context_token: str = "") -> bool:
+        """Send a voice/audio file as a regular file (cc-connect format).
+        No AMR conversion — sends the original format (mp3/wav/etc)."""
         path = Path(file_path)
         if not path.exists():
             return False
 
-        ref = await self._upload_media(to_user, await self._to_amr(path))
+        if not context_token:
+            context_token = self._context_tokens.get(to_user, "")
+        if not context_token:
+            logger.warning("No context_token for voice file send")
+            return False
+
+        file_data = path.read_bytes()
+        ref = await self._upload_media(to_user, file_data, context_token)
         if not ref:
             return False
-        encrypted_param, aes_key, _, _ = ref
+        encrypted_param, aes_key = ref
 
         message = {
             "from_user_id": "",
             "to_user_id": to_user,
-            "client_id": "vvm2-" + secrets.token_hex(8),
+            "client_id": "mmc-" + secrets.token_hex(8),
             "message_type": MSG_TYPE_BOT,
             "message_state": MSG_STATE_FINISH,
+            "context_token": context_token,
             "item_list": [{
-                "type": ITEM_VOICE,
-                "voice_item": {
+                "type": ITEM_FILE,
+                "file_item": {
                     "media": {
                         "encrypt_query_param": encrypted_param,
                         "aes_key": _format_aes_key_for_api(aes_key),
                         "encrypt_type": 1,
                     },
+                    "file_name": path.name,
+                    "len": str(len(file_data)),
                 },
             }],
         }
-        if not context_token:
-            context_token = await self._ensure_context_token(to_user)
-        if context_token:
-            message["context_token"] = context_token
 
         try:
-            data = await _api_post(self._require_client(), EP_SEND_MESSAGE, {"msg": message}, self._token)
-            logger.info(f"Send voice response: {data}")
-            if data.get("ret", 0) == 0 and data.get("errcode", 0) == 0:
+            data = await self._api_call(EP_SEND_MESSAGE, {"msg": message})
+            if data.get("errcode", 0) == 0:
                 if data.get("context_token"):
                     self._context_tokens[to_user] = data["context_token"]
+                logger.info(f"Voice file sent to {to_user}: {path.name}")
                 return True
-            logger.warning(f"Send voice failed: {data}")
+            logger.warning(f"Send voice file failed: {data}")
         except Exception as e:
-            logger.error(f"Send voice error: {e}")
+            logger.error(f"Send voice file error: {e}")
         return False
 
     async def stop(self) -> None:

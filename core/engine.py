@@ -1138,16 +1138,31 @@ class Engine:
     # ─── File sending ────────────────────────────────────────────────────
 
     async def _try_send_local_file(self, user_input: str, state: SessionState) -> Optional[Reply]:
+        """Try to send a local file to the user.
+        
+        Searches for a file path in:
+        1. The current user input (e.g. '把 hello.txt 发给我')
+        2. The last agent reply (e.g. MiMo CLI said '文件已创建: /path/file')
+        """
         if not any(word in user_input for word in ("发文件", "发给我", "发送文件", "传给我")):
             return None
         import re as _re
-        candidates = _re.findall(r"[\w.\\/:\-\u4e00-\u9fff]+", user_input)
+        path_pattern = r"[\w.\/:\-一-鿿]+"
         root = Path.cwd()
-        for candidate in candidates:
-            path = Path(candidate)
-            if not path.is_absolute():
-                path = root / candidate
-            if path.is_file() and hasattr(self._platform, "send_local_file"):
-                ok = await self._platform.send_local_file(state.user_id, str(path))
-                return Reply(content=f"文件已发送：{path.name}" if ok else f"文件发送失败：{path.name}")
+        
+        # Collect candidates from both user input and last agent reply
+        sources = [user_input]
+        if state.last_agent_text:
+            sources.append(state.last_agent_text)
+        
+        for source in sources:
+            candidates = _re.findall(path_pattern, source)
+            for candidate in candidates:
+                path = Path(candidate)
+                if not path.is_absolute():
+                    path = root / candidate
+                if path.is_file() and hasattr(self._platform, 'send_local_file'):
+                    ok = await self._platform.send_local_file(state.user_id, str(path))
+                    return Reply(content=f"文件已发送：{path.name}" if ok else f"文件发送失败：{path.name}")
         return None
+

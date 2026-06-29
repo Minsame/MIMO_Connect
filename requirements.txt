@@ -6,7 +6,7 @@
 langchain-openai>=0.0.8
 langchain-core>=0.1.0
 
-# === HTTP 客户端 ==="
+# === HTTP 客户端 ===
 httpx>=0.24.0
 
 # === 配置管理 ===
