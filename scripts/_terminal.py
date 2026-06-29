@@ -16,7 +16,7 @@ def _getch() -> str:
             return "ESC"
         return ch.decode("utf-8", errors="replace")
     except ImportError:
-        import os, tty, termios
+        import os, select, tty, termios
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
