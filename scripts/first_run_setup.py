@@ -262,27 +262,49 @@ def ask(prompt: str, default: str = "") -> str:
     sys.stdout.write(f"{prompt}{suffix}: ")
     sys.stdout.flush()
     chars: list[str] = []
-    while True:
-        key = _terminal._getch()
-        if key in ("ENTER", "\r", "\n"):
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-            break
-        if key in ("ESC", "\x1b"):
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-            return "BACK"
-        if key == "\x03":
-            raise KeyboardInterrupt()
-        if key in ("\x7f", "\b"):
-            if chars:
-                chars.pop()
-                sys.stdout.write("\b \b")
-            sys.stdout.flush()
-        elif len(key) == 1 and key.isprintable():
-            chars.append(key)
-            sys.stdout.write(key)
-            sys.stdout.flush()
+    # On Linux, keep raw mode for entire input to support paste
+    _raw_fd = None
+    _raw_old = None
+    try:
+        import msvcrt  # noqa: F811
+    except ImportError:
+        import tty, termios  # noqa: F811
+        _raw_fd = sys.stdin.fileno()
+        _raw_old = termios.tcgetattr(_raw_fd)
+        tty.setraw(_raw_fd)
+    try:
+        while True:
+            if _raw_fd is not None:
+                import select  # noqa: F811
+                _b = os.read(_raw_fd, 1)
+                if _b == b"\x1b" and select.select([_raw_fd], [], [], 0.05)[0]:
+                    _b += os.read(_raw_fd, 2)
+                key = _b.decode("utf-8", errors="replace")
+            else:
+                key = _terminal._getch()
+            if key in ("ENTER", "\r", "\n"):
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                break
+            if key in ("ESC", "\x1b"):
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return "BACK"
+            if key == "\x03":
+                raise KeyboardInterrupt()
+            if key in ("\x7f", "\b"):
+                if chars:
+                    chars.pop()
+                    sys.stdout.write("\b \b")
+                sys.stdout.flush()
+            elif len(key) == 1 and key.isprintable():
+                chars.append(key)
+                sys.stdout.write(key)
+                sys.stdout.flush()
+    finally:
+        if _raw_fd is not None:
+            import termios  # noqa: F811
+            termios.tcsetattr(_raw_fd, termios.TCSADRAIN, _raw_old)
     val = "".join(chars).strip()
     return val or default
 
