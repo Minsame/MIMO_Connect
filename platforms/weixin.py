@@ -441,9 +441,9 @@ class WeixinPlatform(Platform):
             if token:
 
                upload_payload["context_token"] = token
-            logger.debug(f"GetUploadUrl request: {upload_payload}")
+            logger.info(f"GetUploadUrl request: {upload_payload}")
             data = await self._api_call(EP_GET_UPLOAD_URL, upload_payload)
-            logger.debug(f"GetUploadUrl response: {data}")
+            logger.info(f"GetUploadUrl response: {data}")
             err_code = data.get("ret", 0) or data.get("errcode", 0)
             if err_code != 0:
                 logger.warning(f"GetUploadUrl failed (err={err_code}); will fallback to text. ret={data.get('ret')} errcode={data.get('errcode')} errmsg={data.get('errmsg', data.get('err_msg', ''))} detail={json.dumps(data, ensure_ascii=False)[:500]}")
