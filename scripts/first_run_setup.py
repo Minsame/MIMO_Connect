@@ -39,22 +39,22 @@ LANG = "zh"
 MESSAGES: dict[str, dict[str, str]] = {
     "zh": {
         "title": "  MIMO_Connect 首次启动部署向导",
-        "required": "  ! 该项必填，请输入。",
+        "required": "   ! 该项必填，请输入。",
         "choose_one": "  ! 请输入 {opts} 之一。",
         "env_exists": ".env 已存在：{path}",
         "reconfigure_q": "是否重新配置？",
         "kept_env": "已保留现有 .env，跳过向导。",
         "step1_title": "[1/5] 中间件 LLM（用于意图识别/状态分类）",
         "choose_provider": "  选择提供商",
-        "api_base_url": "  API base_url",
+        "api_base_url": "   API base_url",
         "model_name": "  模型名称",
-        "api_key": "  API key",
+        "api_key": "   API key",
         "step2_title": "[2/5] 检索本机 mimo CLI 位置",
         "cli_detected": "  √ 已自动检测到：{path}",
         "cli_confirm": "  确认 mimo CLI 路径（回车采用检测值）",
         "cli_not_detected": "  ! 未自动检测到 mimo CLI。",
         "cli_hint": "    若已安装，请手动填写其完整路径；留空则运行时按 PATH 查找。",
-        "cli_path": "  mimo CLI 路径",
+        "cli_path": "   mimo CLI 路径",
         "step3_title": "[3/5] 运行平台（聊天通道）",
         "platform_feishu": "  feishu - 飞书机器人（推荐，WebSocket 长连接，配置简单）",
         "platform_weixin": "  weixin - 微信 iLink Bot（需扫码登录）",
@@ -71,10 +71,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "weixin_cancelled": "\n  已取消扫码。",
         "weixin_login_err": "  ! 扫码登录出错：{e}",
         "step4_title": "[4/5] MiMo TTS 语音合成（可选，留空则后续仅文字）",
-        "mimo_api_key": "  MIMO_API_KEY",
+        "mimo_api_key": "   MIMO_API_KEY",
         "step5_title": "[5/5] MiMo Code 工作目录",
         "work_dir": "  工作目录",
-        "agent_model": "  MiMo Code 模型（MIMO_CONNECT_MODEL，可留空用默认）",
+        "agent_model": "   MiMo Code 模型（MIMO_CONNECT_MODEL，可留空用默认）",
         "env_header": "# MIMO_Connect 配置（由 first_run_setup.py 生成）",
         "env_header2": "# 如需修改，可直接编辑本文件或重新运行 python scripts/first_run_setup.py --force",
         "yaml_no_pyyaml": "  ! 未安装 pyyaml，跳过 config.yaml 同步（不影响 .env）。",
@@ -104,7 +104,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "en": {
         "title": "  MIMO_Connect First-Run Setup Wizard",
-        "required": "  ! This field is required.",
+        "required": "   ! This field is required.",
     # LLM \u8fde\u63a5\u6d4b\u8bd5 & \u6a21\u578b\u9009\u62e9
     "models_fetched": "  \u2713 \u5df2\u83b7\u53d6 {count} \u4e2a\u53ef\u7528\u6a21\u578b\uff1a",
     "model_number": "  \u8bf7\u8f93\u5165\u7f16\u53f7\u6216\u76f4\u63a5\u8f93\u5165\u6a21\u578b\u540d",
@@ -123,9 +123,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "kept_env": "Kept existing .env, skipping wizard.",
         "step1_title": "[1/5] Middleware LLM (intent recognition / status classification)",
         "choose_provider": "  Select provider",
-        "api_base_url": "  API base_url",
+        "api_base_url": "   API base_url",
         "model_name": "  Model name",
-        "api_key": "  API key",
+        "api_key": "   API key",
         "step2_title": "[2/5] Locating local mimo CLI",
         "cli_detected": "  √ Auto-detected: {path}",
         "cli_confirm": "  Confirm mimo CLI path (Enter to accept detected)",
@@ -148,7 +148,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "weixin_cancelled": "\n  QR login cancelled.",
         "weixin_login_err": "  ! QR login error: {e}",
         "step4_title": "[4/5] MiMo TTS speech synthesis (optional, leave blank for text-only)",
-        "mimo_api_key": "  MIMO_API_KEY",
+        "mimo_api_key": "   MIMO_API_KEY",
         "step5_title": "[5/5] MiMo Code working directory",
         "work_dir": "  Working directory",
         "agent_model": "  MiMo Code model (MIMO_CONNECT_MODEL, leave blank for default)",
@@ -268,14 +268,13 @@ def ask(prompt: str, default: str = "") -> str:
     try:
         import msvcrt  # noqa: F811
     except ImportError:
-        import tty, termios  # noqa: F811
+        import select, tty, termios  # noqa: F811
         _raw_fd = sys.stdin.fileno()
         _raw_old = termios.tcgetattr(_raw_fd)
         tty.setraw(_raw_fd)
     try:
         while True:
             if _raw_fd is not None:
-                import select  # noqa: F811
                 _b = os.read(_raw_fd, 1)
                 if _b == b"\x1b" and select.select([_raw_fd], [], [], 0.05)[0]:
                     _b += os.read(_raw_fd, 2)
@@ -303,7 +302,6 @@ def ask(prompt: str, default: str = "") -> str:
                 sys.stdout.flush()
     finally:
         if _raw_fd is not None:
-            import termios  # noqa: F811
             termios.tcsetattr(_raw_fd, termios.TCSADRAIN, _raw_old)
     val = "".join(chars).strip()
     return val or default
