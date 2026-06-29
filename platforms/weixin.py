@@ -6,6 +6,7 @@ Clean rewrite based on CC-Connect's platform adapter pattern.
 
 from __future__ import annotations
 
+import sys
 import asyncio
 import base64
 import hashlib
@@ -353,7 +354,10 @@ class WeixinPlatform(Platform):
             options = reply.metadata.get("options") or []
             if options:
                 return await self._send_text(to_user, self._render_options_text(reply), token)
-            return await self._send_text(to_user, reply.content, token)
+            # WeChat is a plain-text channel (no markdown/segment-tag rendering),
+            # so strip the [TEXT]/[MD]/[CODE:lang]/[TABLE] tags before sending.
+            cleaned = strip_tags(reply.content) or reply.content
+            return await self._send_text(to_user, cleaned, token)
 
         return False
 
@@ -396,10 +400,17 @@ class WeixinPlatform(Platform):
             logger.error(f"Send text error: {e}")
         return False
 
-    async def _api_call(self, endpoint: str, payload: dict) -> dict:
-        """API call with auto re-login on token expiry."""
+    async def _api_call(self, endpoint: str, payload: dict, allow_relogin: bool = True) -> dict:
+        """API call with optional auto re-login on token expiry.
+
+        Re-login performs an interactive QR scan; in a background daemon
+        stdin is /dev/null so the scan cannot complete and would block ~120s.
+        We only attempt re-login when attached to a real TTY (e.g. the
+        first-run wizard); otherwise ret=-2 propagates so the caller can fall
+        back gracefully.
+        """
         data = await _api_post(self._require_client(), endpoint, payload, self._token)
-        if data.get("ret", 0) == -2:
+        if data.get("ret", 0) == -2 and allow_relogin and sys.stdin.isatty():
             logger.warning(f"{endpoint} got ret=-2, re-login...")
             await self._do_login()
             data = await _api_post(self._require_client(), endpoint, payload, self._token)
@@ -428,11 +439,14 @@ class WeixinPlatform(Platform):
                 "aes_key": "",
             }
             if token:
-                upload_payload["context_token"] = token
+
+               upload_payload["context_token"] = token
+            logger.debug(f"GetUploadUrl request: {upload_payload}")
             data = await self._api_call(EP_GET_UPLOAD_URL, upload_payload)
+            logger.debug(f"GetUploadUrl response: {data}")
             err_code = data.get("ret", 0) or data.get("errcode", 0)
             if err_code != 0:
-                logger.warning(f"GetUploadUrl error: {data}")
+                logger.warning(f"GetUploadUrl failed (err={err_code}); will fallback to text. ret={data.get('ret')} errcode={data.get('errcode')} errmsg={data.get('errmsg', data.get('err_msg', ''))} detail={json.dumps(data, ensure_ascii=False)[:500]}")
                 return False
             upload_url = data.get("upload_url") or data.get("upload_full_url")
             if not upload_url:
