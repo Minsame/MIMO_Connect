@@ -73,7 +73,12 @@ def _cmd_config() -> int:
 
 
 def _cmd_logs(args: list[str]) -> int:
-    """显示/跟随日志。"""
+    """显示/跟随日志。
+
+    mmc logs         显示最近 200 行日志
+    mmc logs -n 50   显示最近 50 行日志
+    mmc logs -f      实时跟随日志（只显示启动后的新日志，Ctrl-C 退出）
+    """
     from core import daemon
 
     log_path = daemon.LOG_PATH
@@ -89,31 +94,42 @@ def _cmd_logs(args: list[str]) -> int:
             if i + 1 < len(args) and args[i + 1].isdigit():
                 lines = int(args[i + 1])
 
-    # 先打印末尾 N 行。
+    if follow:
+        # 跟随模式：从本次启动的第一行日志开始显示。
+        # 日志里每次启动都会写 "MIMO_Connect starting..."，找到最后一次出现的位置。
+        import time
+
+        start_pos = 0
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            lines_all = f.readlines()
+            for i in range(len(lines_all) - 1, -1, -1):
+                if "MIMO_Connect starting..." in lines_all[i]:
+                    start_pos = i
+                    break
+        if start_pos > 0:
+            sys.stdout.write("".join(lines_all[start_pos:]))
+            sys.stdout.flush()
+
+        print("[mmc] 跟随日志中（Ctrl-C 退出）...", flush=True)
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                f.seek(0, 2)  # 跳到文件末尾，只跟随后续新日志
+                while True:
+                    chunk = f.read()
+                    if chunk:
+                        sys.stdout.write(chunk)
+                        sys.stdout.flush()
+                    else:
+                        time.sleep(0.4)
+        except KeyboardInterrupt:
+            print("\n[mmc] 已退出日志跟随（引擎仍在后台运行）。")
+        return 0
+
+    # 非跟随模式：打印末尾 N 行。
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
         tail = f.readlines()[-lines:]
     sys.stdout.write("".join(tail))
     sys.stdout.flush()
-
-    if not follow:
-        return 0
-
-    # 跟随模式：轮询新增内容，直到 Ctrl-C。
-    import time
-
-    print("\n[mmc] 跟随日志中（Ctrl-C 退出）...", flush=True)
-    try:
-        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-            f.seek(0, 2)  # 跳到文件末尾
-            while True:
-                chunk = f.read()
-                if chunk:
-                    sys.stdout.write(chunk)
-                    sys.stdout.flush()
-                else:
-                    time.sleep(0.4)
-    except KeyboardInterrupt:
-        print("\n[mmc] 已退出日志跟随（引擎仍在后台运行）。")
     return 0
 
 
