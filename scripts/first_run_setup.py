@@ -282,11 +282,11 @@ def ask(prompt: str, default: str = "") -> str:
             else:
                 key = _terminal._getch()
             if key in ("ENTER", "\r", "\n"):
-                sys.stdout.write("\n")
+                sys.stdout.write("\r\n")
                 sys.stdout.flush()
                 break
             if key in ("ESC", "\x1b"):
-                sys.stdout.write("\n")
+                sys.stdout.write("\r\n")
                 sys.stdout.flush()
                 return "BACK"
             if key == "\x03":
