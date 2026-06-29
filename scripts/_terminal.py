@@ -16,18 +16,22 @@ def _getch() -> str:
             return "ESC"
         return ch.decode("utf-8", errors="replace")
     except ImportError:
-        import tty, termios
+        import os, tty, termios
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
-            ch = sys.stdin.read(3)
+            ch = os.read(fd, 1)
+            if ch == b"\x1b":
+                if select.select([fd], [], [], 0.05)[0]:
+                    ch += os.read(fd, 2)
+            ch = ch.decode("utf-8", errors="replace")
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
         if ch == "\x1b[A": return "UP"
         if ch == "\x1b[B": return "DOWN"
         if ch in ("\r", "\n"): return "ENTER"
-        if ch == "\x1b": return "ESC"
+        if ch.startswith("\x1b") and not ch.startswith("\x1b["): return "ESC"
         return ch.strip() or ch
 
 
