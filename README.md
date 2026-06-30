@@ -1,164 +1,120 @@
+> # ⚠️ 安全提示
+> **MiMo Code CLI 以 `--dangerously-skip-permissions` 模式启动（跳过所有权限确认），请确保运行环境可信。**
+
 # MIMO_Connect
 
-让你在飞书 / 微信里用聊天或语音直接驱动本地的 MiMo Code CLI 编程。MIMO_Connect 是一个中间层：它接收聊天平台的消息，做意图识别与格式整理，转发给 MiMo Code 执行，再把结果（含可选语音）回送到聊天窗口。
+在飞书 / 微信里用聊天或语音直接驱动本地的 MiMo Code CLI 编程。
 
-## 核心功能
+MIMO_Connect 是一个中间层：接收聊天平台消息 → LLM 意图识别与格式整理 → 转发 MiMo Code 执行 → 结果（含可选语音）回送聊天窗口。
 
-- **多平台接入**：飞书（WebSocket 长连接）、微信（iLink Bot）。建议使用飞书，支持更全面，语音效果也更好，测试也更完善
-- **意图路由**：基于 LLM 的意图分类（默认 DeepSeek，支持 OpenAI / Anthropic / SiliconFlow / DashScope），区分编程任务、闲聊、确认、中断等。
-- **MiMo Code 桥接**：解析 `mimo run --format json` 的流式输出，处理会话恢复、权限请求、选项选择、自动重启。
-- **展示模式**：`/show` 细节模式（聚合推送）与 `/hide` 精简模式（只发开头与结尾），运行中可切换。
-- **语音合成**：MiMo TTS 主引擎，Windows TTS、Edge-TTS 逐级降级；富文本（代码、表格）自动跳过朗读。
+## 功能
 
-## 环境要求
+- **飞书 / 微信双平台**：飞书用 WebSocket 长连接，微信用 iLink Bot（扫码登录）。推荐飞书，支持更全面。
+- **LLM 意图路由**：DeepSeek / OpenAI / Anthropic / SiliconFlow / DashScope，区分编程任务、闲聊、确认、中断。
+- **MiMo Code 桥接**：解析 `mimo run --format json` 流式输出，处理会话恢复、权限请求、选项选择。
+- **展示模式**：`/show` 细节模式（聚合推送）与 `/hide` 精简模式（只发开头与结尾）。
+- **语音合成**：MiMo TTS 主引擎，Edge-TTS 降级备用；代码/表格自动跳过朗读。
 
-本项目提供两个相互独立的发行版，各自的环境要求如下。两者都依赖本机已安装 [MiMo Code CLI](https://github.com/XiaomiMiMo)（命令 `mimo` 可用，或在 `.env` 用 `MIMO_CODE_PATH` 指定路径），且运行时需要联网。
+## 前置条件
 
-### GUI 版（Windows 桌面）
-
-| 项目 | 要求 |
-| --- | --- |
-| 操作系统 | Windows 10 / 11（64 位） |
-| 运行 `MIMO_Connect.exe` | 无需额外环境，exe 自带 Python 运行时与全部依赖 |
-| 从源码运行 | Python ≥ 3.10，`pip install -r requirements.txt`（含 PySide6） |
-| 自行打包 | 在 Windows 上用 PyInstaller，依据 `MIMO_Connect.spec` |
-| 必备外部依赖 | MiMo Code CLI、网络 |
-
-### CLI 版（Linux 命令行）
-
-| 项目 | 要求 |
-| --- | --- |
-| 操作系统 | Linux x86_64（Ubuntu / Debian 等主流发行版） |
-| 运行打包好的 `MIMO_Connect-cli` | 无需安装 Python，单文件自带运行时；目标机 glibc 版本需不低于打包机 |
-| 从源码运行（`./mmc`） | Python ≥ 3.10，`bash install.sh`（自动装运行依赖，不含 PySide6） |
-| 自行打包 | 必须在 Linux 上进行（PyInstaller 不能跨平台）：Python ≥ 3.10 + `python3-pip python3-venv python3-dev build-essential` |
-| 必备外部依赖 | MiMo Code CLI、网络 |
-
-> 说明：PyInstaller 不支持跨平台编译，Windows 上打不出 Linux 可执行，反之亦然。CLI 版的单文件可执行必须在 Linux（或 WSL）上打包。
+- **[MiMo Code CLI](https://github.com/XiaomiMiMo)**：本机已安装，命令 `mimo` 可用（或在 `.env` 中用 `MIMO_CODE_PATH` 指定路径）。
+- **网络**：运行时需要联网（调用 LLM API、MiMo Code CLI）。
+- **Python ≥ 3.10**：从源码运行需要；GUI exe 和 CLI 单文件版自带运行时。
 
 ## 快速开始
 
-### Windows：桌面应用（推荐）
+### Windows 桌面应用（推荐）
 
-直接运行打包好的 `MIMO_Connect.exe`（单文件，约 85MB，自带 Python 与依赖，无需另装环境）。
-首次启动会进入图形化引导向导（可在欢迎页选择中文 / 英文界面），依次配置中间层 LLM、聊天平台凭证、本地 mimo CLI 路径与工作目录。配置完成后程序常驻系统托盘：右键托盘图标可启停引擎、打开实时日志窗口、进入设置面板（含语言切换）。
+直接运行打包好的 `MIMO_Connect.exe`（约 85MB，自带 Python 与依赖）。首次启动进入图形化引导向导，依次配置中间层 LLM、聊天平台凭证、mimo CLI 路径与工作目录。配置后程序常驻系统托盘，右键可启停引擎、查看日志、进入设置。
 
-配置文件 `.env` 与日志 `mimo_connect.log` 默认保存在用户级目录 `%USERPROFILE%\.config\mimo_connect\`（可用环境变量 `MIMO_CONNECT_HOME` 覆盖）；若 exe 同目录已存在 `.env`（旧版本布局），则继续沿用同目录，升级不丢配置。
+配置文件 `.env` 与日志默认在 `%USERPROFILE%\.config\mimo_connect\`，可用环境变量 `MIMO_CONNECT_HOME` 覆盖。
 
-> 从源码运行 GUI：`python gui_main.py`；或在已建 venv 时双击 `first_run.bat` 自动装依赖并引导。
+> 从源码运行：`pip install -r requirements.txt` → `python gui_main.py`
 
-### Linux：命令行（CLI 版）
+### Linux 命令行
 
-方式 A（推荐）— 一键智能安装：脚本自动探测 Python，>= 3.10 直接建隔离 venv 装依赖；没有或过低则用系统包管理器（apt/dnf/pacman/zypper/brew）安装后再继续。
+安装：
 
 ```bash
-git clone <仓库地址> MIMO_Connect && cd MIMO_Connect
-bash install.sh          # 探测/安装 Python + 建 .venv + 装运行依赖，最后提示启动方式
-# 国内网络可加镜像加速：
+git clone https://github.com/Minsame/MIMO_Connect.git MIMO_Connect && cd MIMO_Connect
+bash install.sh
+# 国内网络加速：
 # MMC_PIP_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple bash install.sh
-
-./mmc                    # 首次进入分步引导；之后启动引擎到后台，打印启动结果即返回
-./mmc status             # 查看运行状态（PID / 平台 / 模型 / 工作目录）
-./mmc logs -f            # 实时跟随日志（Ctrl-C 退出，引擎仍在后台）
-./mmc restart            # 重启引擎（重新读取 .env / config.yaml）；可简写 res
-./mmc stop               # 停止后台引擎
-./mmc config             # 调起配置引导，完成后自动重启引擎
-./mmc help               # 查看完整命令
-# 或装完即跑：bash install.sh --run
 ```
 
-> Linux CLI 默认把引擎拉到后台运行，不再占用终端持续刷日志；用 `mmc logs -f` 按需查看日志，用 `mmc status` 查看状态。
-
-> `install.sh` 会把 `mmc` 软链到 `~/.local/bin/mmc`，若该目录在 PATH 中即可在任意目录直接 `mmc`（脚本会自动解析软链定位项目）；否则用 `./mmc`。配置与日志默认落在 `~/.config/mimo_connect/`（遵循 `XDG_CONFIG_HOME`，可用 `MIMO_CONNECT_HOME` 覆盖）；旧版本在项目根已有 `.env` 时会继续沿用项目根，避免升级后配置丢失。
-
-方式 B — 打包成单文件可执行（拷一个文件即可分发到无 Python 的机器）：
+启动与常用命令：
 
 ```bash
-# 1. 一次性装系统依赖（需要 sudo 密码，编译扩展所需）
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-venv python3-dev build-essential
-
-# 2. 一键打包（脚本会自建隔离 venv、装依赖、调用 PyInstaller）
-bash build_linux_cli.sh
-
-# 3. 运行（首次自动创建 .env / config.yaml / 日志并进入引导）
-#    配置与日志默认落在 ~/.config/mimo_connect/（可用 MIMO_CONNECT_HOME 覆盖）
-./dist/MIMO_Connect-cli
-./dist/MIMO_Connect-cli status          # 查看运行状态
-./dist/MIMO_Connect-cli logs -f         # 实时跟随日志
-./dist/MIMO_Connect-cli restart         # 重启引擎（可简写 res）
-./dist/MIMO_Connect-cli stop            # 停止后台引擎
-./dist/MIMO_Connect-cli config          # 重新配置，完成后自动重启
+mmc                  # 首次进入分步引导；之后启动引擎到后台
+mmc status           # 查看运行状态（PID / 平台 / 模型）
+mmc logs -f          # 实时跟随日志（从本次启动开始，Ctrl-C 退出）
+mmc restart          # 重启引擎（重新读取配置）
+mmc stop             # 停止引擎
+mmc config           # 重新配置，完成后自动重启
+mmc help             # 完整命令列表
 ```
 
-命令行向导同样支持中文 / 英文（启动时选择，偏好写入 `.env` 的 `MIMO_CONNECT_LANG`，与 GUI 共用）。
+`install.sh` 会把 `mmc` 软链到 `~/.local/bin/mmc`，若该目录在 PATH 中即可任意目录直接运行。配置与日志默认在 `~/.config/mimo_connect/`，可用 `MIMO_CONNECT_HOME` 覆盖。
 
-### 手动方式（开发 / 调试）
+> **微信用户**：选择微信平台后会弹出二维码，用手机微信扫码完成登录。Token 会自动保存到 `.env`，过期后重新运行 `mmc config` 扫码即可。
 
-```bash
-# 1. 安装依赖（建议先建虚拟环境）
-python -m venv .venv
-.venv\Scripts\activate            # Windows
-pip install -r requirements.txt
+### 打包成单文件分发
 
-# 2. 启动
-python gui_main.py                 # 图形界面（Windows）
-python cli_main.py                 # 命令行（跨平台，未配置先引导）
-```
-
-前置条件：已安装 [MiMo Code CLI](https://github.com/XiaomiMiMo)（命令 `mimo` 可用，或在 `.env` 用 `MIMO_CODE_PATH` 指定路径）；从源码运行需 Python ≥ 3.10。`MIMO_Connect.exe` 自带运行时，但仍需本机已装 MiMo Code CLI 并联网。
-
-### 自行打包 exe
+**Windows exe**（需在 Windows 上打包）：
 
 ```bash
 pip install pyinstaller
 pyinstaller MIMO_Connect.spec --noconfirm
-# 产物：dist/MIMO_Connect.exe（onefile，已排除 WebEngine 等重型 Qt 模块）
+# 产物：dist/MIMO_Connect.exe
 ```
+
+**Linux CLI 单文件**（需在 Linux/WSL 上打包）：
+
+```bash
+sudo apt-get install -y python3-pip python3-venv python3-dev build-essential
+bash build_linux_cli.sh
+# 产物：dist/MIMO_Connect-cli
+```
+
+> PyInstaller 不支持跨平台编译，Windows 上打不出 Linux 可执行，反之亦然。
+
+## 聊天命令
+
+在飞书/微信聊天窗口直接发送：
+
+| 命令 | 说明 |
+|------|------|
+| `/show` | 细节模式，聚合推送过程 |
+| `/hide` | 精简模式，只发开头与结尾 |
+| `/model` | 查看当前模型 |
+| `/model <名称>` | 切换模型（下次新对话生效） |
+| `/models` | 列出可用模型 |
+| `/abort` 或 `/stop` | 中断当前任务 |
+| `/connect` | 查看接入提示 |
+| `/help` | 帮助 |
+
+## 配置
+
+- **`.env`**：API Key、飞书 APP_ID/SECRET、微信 TOKEN/BOT_ID、mimo 路径、工作目录等敏感信息。
+- **`config.yaml`**：LLM 提供商与模型、TTS 引擎与降级顺序、日志级别等非敏感配置。
 
 ## 目录结构
 
 ```
 MIMO_Connect/
-├── gui_main.py             # GUI 入口（桌面应用，打包进 exe）
+├── gui_main.py             # GUI 入口（Windows 桌面）
 ├── cli_main.py             # CLI 入口（跨平台命令行）
-├── main.py                 # 异步事件循环（引擎本体，被两个入口复用）
-├── config.yaml             # 全局配置（LLM / TTS / CLI）
-├── .env.example            # 环境变量模板
-├── MIMO_Connect.spec       # GUI 版打包配置（Windows，onefile + 精简 Qt）
-├── MIMO_Connect-cli.spec   # CLI 版打包配置（Linux，无 Qt，体积更小）
-├── install.sh              # Linux/macOS 一键智能安装（探测/装 Python + venv + 依赖）
-├── build_linux_cli.sh      # Linux 一键打包 CLI 版的脚本
-├── first_run.bat           # Windows 一键装依赖 + 引导（源码运行用）
-├── mmc / mmc.bat           # 统一启动器（Linux 命令行 / Windows GUI）
-├── gui/                    # 桌面 GUI：引导向导、托盘、设置、日志窗口、i18n
-│   ├── app.py
-│   ├── onboarding.py
-│   ├── settings.py
-│   ├── log_view.py
-│   ├── tray.py
-│   ├── theme.py
-│   └── i18n.py             # 中文 / 英文界面文案
-├── core/                   # 引擎编排、意图路由、段解析/重写、进度摘要、语音浓缩
-│   ├── engine.py
-│   ├── intent_router.py
-│   ├── segment_parser.py
-│   ├── segment_rewriter.py
-│   ├── progress_summarizer.py
-│   └── voice_condenser.py
+├── main.py                 # 异步引擎本体（被两个入口复用）
+├── mmc / mmc.bat           # 统一启动器
+├── install.sh              # Linux 一键安装
+├── build_linux_cli.sh      # Linux CLI 打包脚本
+├── MIMO_Connect.spec       # GUI 打包配置（Windows）
+├── MIMO_Connect-cli.spec   # CLI 打包配置（Linux）
+├── core/                   # 引擎、意图路由、段解析/重写、进度摘要
 ├── agent/mimo_code.py      # MiMo Code CLI 适配器
 ├── platforms/              # feishu.py / weixin.py 平台适配器
-├── voice/edge_tts.py       # TTS 提供商
-├── scripts/                # 首次配置向导、记忆同步等工具脚本
-├── tests/                  # pytest 测试
-└── docs/                   # ADR、坑点记录、指南
+├── voice/edge_tts.py       # TTS 提供商（MiMo TTS / Edge-TTS / Windows TTS）
+├── gui/                    # 桌面 GUI（引导、托盘、设置、日志、i18n）
+├── scripts/                # 首次配置向导等工具脚本
+└── tests/                  # pytest 测试
 ```
-
-## 配置说明
-
-- **`.env`**：所有密钥与平台凭证（API Key、飞书 APP_ID/SECRET、微信 TOKEN/BOT_ID、mimo 路径、工作目录）。
-- **`config.yaml`**：LLM 提供商与模型、TTS 引擎与降级顺序、CLI 选择、日志等非敏感配置。
-
-## 中间层命令
-
-在聊天窗口直接发送：`/show` 细节模式、`/hide` 精简模式、`/model` 查看当前模型、`/model <名称>` 切换模型、`/models` 列出可用模型、`/abort`（或 `/stop`）中断当前任务、`/connect` 查看接入提示、`/help` 帮助。
