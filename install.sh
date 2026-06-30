@@ -69,8 +69,52 @@ if ! "$PY" -m venv --help >/dev/null 2>&1; then
 fi
 
 # 2) 建虚拟环境并装运行依赖（与 CLI 打包一致，不含 PySide6 / 开发工具）。
+
+# 用 get-pip.py 给 venv 手动安装 pip（不依赖 ensurepip）。
+# 用法：bootstrap_pip <venv_python> [pip_mirror]
+bootstrap_pip() {
+  local venv_py="$1"
+  local mirror="${2:-}"
+  local get_pip="/tmp/mmc_get-pip.py"
+  echo "[install] 下载 get-pip.py 安装 pip ..."
+  if command -v curl >/dev/null 2>&1; then
+    if ! curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$get_pip"; then
+      echo "[install] 错误：curl 下载 get-pip.py 失败，请检查网络连接。" >&2
+      echo "          也可手动下载 https://bootstrap.pypa.io/get-pip.py 后重试。" >&2
+      return 1
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if ! wget -q -O "$get_pip" https://bootstrap.pypa.io/get-pip.py; then
+      echo "[install] 错误：wget 下载 get-pip.py 失败，请检查网络连接。" >&2
+      echo "          也可手动下载 https://bootstrap.pypa.io/get-pip.py 后重试。" >&2
+      return 1
+    fi
+  else
+    echo "[install] 错误：系统未安装 curl 或 wget，无法下载 get-pip.py。" >&2
+    echo "          请安装其一：sudo apt install curl（或 wget）后重试。" >&2
+    return 1
+  fi
+  if [ -n "$mirror" ]; then
+    if ! "$venv_py" "$get_pip" -i "$mirror"; then
+      echo "[install] 错误：get-pip.py 执行失败，pip 安装未成功。" >&2
+      rm -f "$get_pip"
+      return 1
+    fi
+  else
+    if ! "$venv_py" "$get_pip"; then
+      echo "[install] 错误：get-pip.py 执行失败，pip 安装未成功。" >&2
+      rm -f "$get_pip"
+      return 1
+    fi
+  fi
+  rm -f "$get_pip"
+}
+
 if [ ! -x "$ROOT/.venv/bin/python" ]; then
   echo "[install] 创建虚拟环境 .venv ..."
+  PIP_MIRROR=""
+  if [ -n "${MMC_PIP_MIRROR:-}" ]; then PIP_MIRROR="$MMC_PIP_MIRROR"; fi
+  # 标准 venv 创建（带 pip）；失败或创建后无 pip 则走兜底。
   if ! "$PY" -m venv .venv 2>/dev/null; then
     echo "[install] 标准 venv 创建失败，改用 --without-pip 模式 ..."
     rm -rf .venv
@@ -85,42 +129,12 @@ if [ ! -x "$ROOT/.venv/bin/python" ]; then
       echo "  解决后重新运行：bash install.sh" >&2
       exit 1
     fi
-    # 用 get-pip.py 手动安装 pip（不依赖 ensurepip）
-    PIP_MIRROR=""
-    if [ -n "${MMC_PIP_MIRROR:-}" ]; then PIP_MIRROR="$MMC_PIP_MIRROR"; fi
-    GET_PIP="/tmp/mmc_get-pip.py"
-    echo "[install] 下载 get-pip.py 安装 pip ..."
-    if command -v curl >/dev/null 2>&1; then
-      if ! curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$GET_PIP"; then
-        echo "[install] 错误：curl 下载 get-pip.py 失败，请检查网络连接。" >&2
-        echo "          也可手动下载 https://bootstrap.pypa.io/get-pip.py 后重试。" >&2
-        exit 1
-      fi
-    elif command -v wget >/dev/null 2>&1; then
-      if ! wget -q -O "$GET_PIP" https://bootstrap.pypa.io/get-pip.py; then
-        echo "[install] 错误：wget 下载 get-pip.py 失败，请检查网络连接。" >&2
-        echo "          也可手动下载 https://bootstrap.pypa.io/get-pip.py 后重试。" >&2
-        exit 1
-      fi
-    else
-      echo "[install] 错误：系统未安装 curl 或 wget，无法下载 get-pip.py。" >&2
-      echo "          请安装其一：sudo apt install curl（或 wget）后重试。" >&2
-      exit 1
-    fi
-    if [ -n "$PIP_MIRROR" ]; then
-      if ! "$ROOT/.venv/bin/python" "$GET_PIP" -i "$PIP_MIRROR"; then
-        echo "[install] 错误：get-pip.py 执行失败，pip 安装未成功。" >&2
-        rm -f "$GET_PIP"
-        exit 1
-      fi
-    else
-      if ! "$ROOT/.venv/bin/python" "$GET_PIP"; then
-        echo "[install] 错误：get-pip.py 执行失败，pip 安装未成功。" >&2
-        rm -f "$GET_PIP"
-        exit 1
-      fi
-    fi
-    rm -f "$GET_PIP"
+    bootstrap_pip "$ROOT/.venv/bin/python" "$PIP_MIRROR" || exit 1
+  fi
+  # venv 命令成功但可能没带 pip（ensurepip 不可用时静默生成无 pip 的 venv）。
+  if ! "$ROOT/.venv/bin/python" -m pip --version >/dev/null 2>&1; then
+    echo "[install] venv 中缺少 pip，用 get-pip.py 补装 ..."
+    bootstrap_pip "$ROOT/.venv/bin/python" "$PIP_MIRROR" || exit 1
   fi
 fi
 VENV_PY="$ROOT/.venv/bin/python"
